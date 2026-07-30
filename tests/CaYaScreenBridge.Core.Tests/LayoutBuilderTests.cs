@@ -72,22 +72,65 @@ public class LayoutBuilderTests
             Panel("B", 1920, 0, 1920, 1080, 96, 531, 299),
         };
 
+        // Both positions are pinned so the assertion is about the overrides alone. With only one of
+        // them pinned, the other would be reconstructed against it and the whole layout normalised
+        // back to the origin, which is correct behaviour but not what this test is about.
         var profile = new LayoutProfile { Id = "test" };
-        DisplayOverride ovr = profile.GetOrCreate("B");
-        ovr.PhysicalLeftMm = 700;
-        ovr.PhysicalTopMm = 40;
-        ovr.PhysicalWidthMm = 600;
-        ovr.PhysicalHeightMm = 340;
+
+        DisplayOverride a = profile.GetOrCreate("A");
+        a.PhysicalLeftMm = 0;
+        a.PhysicalTopMm = 0;
+
+        DisplayOverride b = profile.GetOrCreate("B");
+        b.PhysicalLeftMm = 700;
+        b.PhysicalTopMm = 40;
+        b.PhysicalWidthMm = 600;
+        b.PhysicalHeightMm = 340;
 
         ZoneLayout layout = LayoutBuilder.Build(displays, profile);
-        DisplayZone b = layout.FindByStableId("B")!;
+        DisplayZone zoneA = layout.FindByStableId("A")!;
+        DisplayZone zoneB = layout.FindByStableId("B")!;
 
-        Assert.Equal(600, b.PhysicalBounds.Width, 3);
-        Assert.Equal(340, b.PhysicalBounds.Height, 3);
+        // The hand entered size wins over EDID.
+        Assert.Equal(600, zoneB.PhysicalBounds.Width, 3);
+        Assert.Equal(340, zoneB.PhysicalBounds.Height, 3);
 
-        // The layout is normalised so its top left corner sits at the origin; A is at y = 0 and B
-        // keeps its 40 mm offset relative to it.
-        Assert.Equal(40, b.PhysicalBounds.Top - layout.FindByStableId("A")!.PhysicalBounds.Top, 3);
+        // The EDID size is still used for the display that was not resized.
+        Assert.Equal(531, zoneA.PhysicalBounds.Width, 3);
+
+        // Both hand placed positions survive, including the deliberate 169 mm gap between them.
+        Assert.Equal(0, zoneA.PhysicalBounds.Left, 3);
+        Assert.Equal(0, zoneA.PhysicalBounds.Top, 3);
+        Assert.Equal(700, zoneB.PhysicalBounds.Left, 3);
+        Assert.Equal(40, zoneB.PhysicalBounds.Top, 3);
+    }
+
+    /// <summary>
+    /// A display the user has not placed is reconstructed against one they have, so a partial
+    /// calibration stays coherent instead of leaving the untouched panel at the origin.
+    /// </summary>
+    [Fact]
+    public void UnplacedDisplaysAreReconstructedAgainstPlacedOnes()
+    {
+        var displays = new[]
+        {
+            Panel("A", 0, 0, 1920, 1080, 96, 531, 299, primary: true),
+            Panel("B", 1920, 0, 1920, 1080, 96, 531, 299),
+        };
+
+        var profile = new LayoutProfile { Id = "test" };
+        DisplayOverride b = profile.GetOrCreate("B");
+        b.PhysicalLeftMm = 700;
+        b.PhysicalTopMm = 40;
+
+        ZoneLayout layout = LayoutBuilder.Build(displays, profile);
+        DisplayZone zoneA = layout.FindByStableId("A")!;
+        DisplayZone zoneB = layout.FindByStableId("B")!;
+
+        // A is placed immediately to the left of B, and the layout is then normalised to the origin.
+        Assert.Equal(zoneA.PhysicalBounds.Right, zoneB.PhysicalBounds.Left, 3);
+        Assert.Equal(0, layout.PhysicalBounds.Left, 6);
+        Assert.Equal(0, layout.PhysicalBounds.Top, 6);
     }
 
     [Fact]
