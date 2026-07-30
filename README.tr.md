@@ -202,10 +202,6 @@ src/CaYaScreenBridge.Windows/       Windows katmanı ve arayüz
 tests/CaYaScreenBridge.Core.Tests/  Algoritma testleri
 ```
 
-## Katkıda bulunanlar
-
-- **[CaYatur](https://github.com/CaYatur)** — proje sahibi, tasarım yönü ve gereksinimler
-
 ## Lisans
 
 MIT — bkz. [LICENSE](LICENSE).
