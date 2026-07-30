@@ -55,6 +55,12 @@ public readonly struct Vec2 : IEquatable<Vec2>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vec2 operator /(Vec2 a, double s) => new(a.X / s, a.Y / s);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool operator ==(Vec2 a, Vec2 b) => a.X.Equals(b.X) && a.Y.Equals(b.Y);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool operator !=(Vec2 a, Vec2 b) => !(a == b);
+
     /// <summary>Component wise multiply. Used to apply a per axis pixels-per-millimetre scale.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Vec2 Scale(Vec2 factor) => new(X * factor.X, Y * factor.Y);

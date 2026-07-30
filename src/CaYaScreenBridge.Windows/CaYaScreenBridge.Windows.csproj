@@ -8,7 +8,11 @@
     <AssemblyName>CaYaScreenBridge</AssemblyName>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <!--
+      Left at the framework default. Declaring a higher SupportedOSPlatformVersion would require
+      raising TargetPlatformVersion, which pulls in the Windows SDK projections this application has
+      no use for. The real minimum (Windows 10 1809) is enforced by the installer instead.
+    -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <AssemblyTitle>CaYaScreenBridge</AssemblyTitle>
