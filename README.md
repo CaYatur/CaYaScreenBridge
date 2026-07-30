@@ -4,165 +4,174 @@
 
 # CaYaScreenBridge
 
-**Farklı DPI'lı ekranlar arasında imleci fiziksel olarak hizalı tutan Windows uygulaması.**
+**A Windows utility that keeps the mouse cursor physically aligned across displays with different DPI.**
 
-*A Windows utility that keeps the mouse cursor physically aligned across mixed DPI displays.*
+**English** · [Türkçe](README.tr.md)
 
 </div>
 
 ---
 
-## Sorun
+## The problem
 
-Windows her ekranı yalnızca bir piksel dikdörtgeni olarak görür. 27" 4K bir panel ile 24" Full HD bir
-panel neredeyse aynı piksel yüksekliğine sahiptir ama fiziksel olarak tamamen farklıdır. İmleç
-kenardan geçerken piksel satırını koruduğu için masanızda bambaşka bir yükseklikte belirir — 4K
-ekranın ortasından çıkan imleç, yan ekranın en altına düşer.
+Windows sees every display as nothing but a rectangle of pixels. A 27" 4K panel and a 24" Full HD
+panel are almost the same height in pixels but nothing like it in real life. When the cursor crosses
+the boundary it keeps its pixel row, so it reappears at a completely different height on your desk —
+leave the middle of the 4K screen and you arrive at the bottom of the one beside it.
 
-CaYaScreenBridge, Windows'un piksel uzayına paralel olarak **milimetre cinsinden ikinci bir konum**
-tutar, her hareketi bu fiziksel uzayda çözer ve sonucu ancak en sonda piksele çevirir.
+CaYaScreenBridge maintains **a second position in millimetres** alongside the pixel one, solves every
+movement in that physical space, and converts back to pixels only at the very end.
 
-## Neler yapar
+## What it does
 
 | | |
 |---|---|
-| **Fiziksel hizalama** | İmleç ekran değiştirirken masadaki gerçek yüksekliğini korur. |
-| **Yörünge farkındalığı** | Hedef ekran, hareketin bittiği nokta ile değil, hareketin geçtiği yol ile belirlenir. Hızlı bir çapraz savurma, gerçekten üzerinden geçtiği ekrana iner. |
-| **Kenar destekli geçiş** | Windows imleci masaüstü kenarına sabitlediğinde hareket ham HID verisinden yeniden kurulur. Fiziksel olarak komşu ama piksel olarak kaymış ekranlara geçişi güvenilir yapan şey budur. |
-| **İmleç kaybolmaz** | L biçimli yerleşimlerde boşluğa düşen imleç, gidiş yönündeki en yakın ekrana yansıtılır. |
-| **Pencere sürükleme** | Pencere DPI sınırını geçtiği anda gerçek boyutunu koruyacak şekilde yeniden ölçeklenir; tuttuğunuz nokta imlecin altında kalır. |
-| **Oyun ve tam ekran** | Özel tam ekran, kenarlıksız tam ekran ve anti-cheat durumları ayrı ayrı algılanır ve gerektiğinde uygulama tamamen yoldan çekilir. |
-| **Kendini onarır** | Kanca düşerse yeniden kurulur; uyku, oturum kilidi, ekran değişimi ve bozuk yapılandırma dosyası için ayrı kurtarma yolları vardır. |
-| **Görsel yerleşim editörü** | Ekranları gerçek göreli boyutlarıyla, milimetre uzayında sürükleyerek düzenlersiniz. |
+| **Physical alignment** | The cursor keeps its real height on the desk when it changes screen. |
+| **Trajectory aware** | The destination is chosen from the path the movement took, not from where it happened to end. A fast diagonal flick lands on the screen it actually crossed. |
+| **Edge assisted crossing** | When Windows pins the cursor to the edge of the desktop, the rest of the movement is reconstructed from raw HID data. This is what makes crossings into a physically adjacent but pixel offset display reliable. |
+| **The cursor is never lost** | A movement ending in the dead space of an L shaped layout is projected onto the nearest display in the direction of travel. |
+| **Window dragging** | A window is rescaled the moment it crosses a DPI boundary so it keeps its real size, and the point you grabbed stays under the pointer. |
+| **Games and full screen** | Exclusive full screen, borderless full screen and anti-cheat are each detected separately, and the application gets out of the way when it should. |
+| **It repairs itself** | A dropped hook is reinstalled; sleep, session lock, display changes and a corrupt configuration file each have their own recovery path. |
+| **Visual layout editor** | Displays are arranged by dragging them at their true relative sizes, in millimetre space. |
 
-## Kurulum
+## Installing
 
-**Kurulum dosyası** — [Releases](https://github.com/CaYatur/CaYaScreenBridge/releases) sayfasından
-`CaYaScreenBridge-x.y.z-setup.exe` dosyasını indirin.
+**Installer** — download `CaYaScreenBridge-x.y.z-setup.exe` from the
+[Releases](https://github.com/CaYatur/CaYaScreenBridge/releases) page.
 
-**Taşınabilir** — aynı sayfadaki `-portable-win-x64.zip` arşivini açıp `CaYaScreenBridge.exe`
-dosyasını çalıştırın. .NET kurulumu gerekmez, paket kendi çalışma zamanını taşır.
+**Portable** — download the `-portable-win-x64.zip` archive from the same page, extract it and run
+`CaYaScreenBridge.exe`. No .NET installation is needed; the package carries its own runtime.
 
-Gereksinim: Windows 10 sürüm 1809 (10.0.17763) veya üzeri, x64.
+Requires Windows 10 version 1809 (10.0.17763) or later, x64.
 
-### Başlangıçta açılma
+### Starting with Windows
 
-Uygulama kendi oturum açma görevini **Görev Zamanlayıcı** üzerinden kaydeder. Bu bilinçli bir
-tercih: standart kullanıcı olarak kurulan bir düşük seviye fare kancası, yükseltilmiş bir pencere
-öndeyken yok sayılır. Yani yönetici olarak açılmış bir oyunun veya Görev Yöneticisi'nin üzerindeyken
-düzeltme sessizce çalışmayı bırakır. Oturum açma görevi bu yetkiyi her açılışta UAC istemi
-göstermeden verir.
+The application registers its own logon task through **Task Scheduler**. That is a deliberate choice:
+a low level mouse hook installed by a standard user process is ignored while an elevated window has
+focus. In other words, correction would silently stop working over a game launched as administrator,
+or over Task Manager. A logon task grants those rights without a UAC prompt at every sign in.
 
-Üç kademeli yedek yol vardır — Görev Zamanlayıcı COM arayüzü, `schtasks` komut satırı, ve son çare
-olarak `HKCU\...\Run` anahtarı. Uygulama her açılışta kaydını doğrular ve yol değiştiyse (güncelleme,
-klasör taşıma) yeniden yazar.
+There are three layers of fallback — the Task Scheduler COM interface, the `schtasks` command line,
+and finally the `HKCU\...\Run` key. The registration is verified on every start and rewritten if the
+path has drifted (an update, a moved folder).
 
-## Nasıl çalışır
+## How it works
 
-### Koordinat modeli
+### The coordinate model
 
-Her ekran iki dikdörtgenle temsil edilir: Windows'un kullandığı piksel dikdörtgeni, ve panelin
-masadaki gerçek yerini tarif eden milimetre dikdörtgeni. Fiziksel boyut **EDID**'den okunur (panelin
-kendi bildirdiği gerçek ölçüler), yoksa DPI'dan tahmin edilir, her durumda kullanıcı düzeltebilir.
+Every display is represented by two rectangles: the pixel one Windows uses, and a millimetre one
+describing where the panel really sits on the desk. The physical size comes from **EDID** (the real
+dimensions the panel reports), falls back to a DPI estimate, and can be corrected by hand in either
+case.
 
 ```
-milimetre = fizikselKonum + (piksel - pikselKonum) / pikselPerMm
+millimetres = physicalOrigin + (pixel - pixelOrigin) / pixelsPerMm
 ```
 
-Yerleşim, Windows ekran ayarlarındaki komşuluk ilişkileri korunarak milimetre uzayında yeniden kurulur:
-piksel uzayında birbirine değen paneller milimetre uzayında da değer, ortak kenar boyunca kayma
-oranı korunur.
+The layout is reconstructed in millimetre space while preserving the neighbour relationships from the
+Windows display settings: panels that touch in pixel space touch in millimetre space too, and the
+proportional offset along the shared edge is kept.
 
-### Geçiş çözücü
+### The transition solver
 
-Her fare hareketi için:
+For every mouse movement:
 
-1. Hareket kaynak ekranın içindeyse hiçbir şey yapılmaz — bu, olayların büyük çoğunluğudur ve bir
-   dikdörtgen testine mal olur.
-2. Ekrandan çıkıyorsa hareket milimetre uzayına çevrilir ve hedef nokta hesaplanır.
-3. Hedef nokta bir ekranın üzerindeyse iş biter.
-4. Değilse hareket **doğru parçası olarak** tüm ekranlarla kesiştirilir; yol üzerindeki ilk ekran
-   seçilir ve konum o ekrana kırpılır. Dar bir ekranı aşan hızlı hareketler böyle doğru iner.
-5. O da yoksa sarma (etkinse) denenir.
-6. Hâlâ yoksa, gidiş yönündeki en yakın ekrana yansıtılır. **İmleç asla boşlukta kalmaz.**
+1. If the movement stays on the source display nothing happens — this is the overwhelming majority of
+   events, and it costs one rectangle test.
+2. If it leaves, the movement is converted into millimetre space and the destination is computed.
+3. If the destination lands on a display, done.
+4. If not, the movement is intersected **as a line segment** with the whole layout; the first display
+   along the path is chosen and the position is clamped onto it. This is how a fast movement across a
+   narrow panel still lands correctly.
+5. Failing that, wrapping is tried when enabled.
+6. Failing that, the position is projected onto the nearest display in the direction of travel.
+   **The cursor is never left in dead space.**
 
-Otoriter konum milimetre olanıdır ve **asla yuvarlanmış pikselden yeniden türetilmez**. Bu yüzden bir
-sınırı bin kez ileri geri geçmek imleci başladığı yere döndürür; yuvarlama hatası birikmez.
-Depoda bunu 1000 geçiş üzerinden doğrulayan bir test var.
+The authoritative position is the millimetre one, and it is **never re-derived from the rounded
+pixel position**. Crossing a border back and forth a thousand times therefore returns the cursor to
+where it started; rounding error does not accumulate. There is a test in this repository that
+verifies exactly that over a thousand crossings.
 
-### Kenar destekli geçiş
+### Edge assisted crossing
 
-Windows, imleci masaüstünün dış kenarına dayadığında düşük seviye kanca ateşlenmeye devam eder ama
-bildirilen konum değişmez — yani niyet görünmez olur. Ham girdi (`WM_INPUT`) o sırada gerçek cihaz
-deltasını vermeye devam eder. Ancak bu delta cihaz birimindedir ve arada işaretçi ivmesi vardır.
+When Windows pins the cursor against the outer edge of the desktop, the low level hook keeps firing
+but the reported position stops changing — the intent becomes invisible. Raw input (`WM_INPUT`) keeps
+delivering the true device delta throughout. That delta is in device units, though, with pointer
+acceleration in between.
 
-Uygulama ivme eğrisini yeniden yazmaya çalışmaz: imleç serbestçe hareket ederken ham delta ile
-gerçek piksel hareketi arasındaki oranı **üç hız kovasında** öğrenir (ivme hıza bağlı olduğu için tek
-bir ortalama yetmez), ve öğrenilen oranı yalnızca o an tıkalı olan eksen için uygular.
+The application does not try to reimplement the acceleration curve. While the cursor is moving
+freely it learns the ratio between the raw delta and the actual pixel movement in **three speed
+buckets** (acceleration is velocity dependent, so a single average would not do), and applies the
+learned ratio only to the axis that is currently blocked.
 
-### Pencere sürükleme
+### Window dragging
 
-Sürükleme başladığında pencerenin fiziksel boyutu ve tutma noktasının orana göre yeri kaydedilir.
-Pencere DPI sınırını geçtiğinde hedef dikdörtgen bu iki değerden çözülür.
+When a drag starts, the window's physical size and the proportional position of the grab point are
+captured. When the window crosses a DPI boundary, the target rectangle is solved from those two
+values.
 
-İki ayrıntı bunu pratikte çalışır kılar:
+Two details make this work in practice:
 
-- Her sınır geçişinden kısa bir süre sonra dikdörtgen **yeniden uygulanır**. DPI farkında bir
-  uygulama bizim `SetWindowPos` çağrımızdan sonra `WM_DPICHANGED` alır ve kendi seçtiği boyuta geçer;
-  gecikmeli ikinci geçiş bizim ölçümüzü geri koyar.
-- Her `SetWindowPos` girdi iş parçacığının dışında yapılır. Kanca geri çağrısı içinden başka bir
-  sürecin penceresine yazmak, o süreç kadar bloke olmak demektir — ve Windows'un kancayı düşürmesinin
-  en klasik yolu tam olarak budur.
+- The rectangle is **re-applied** shortly after each boundary crossing. A DPI aware application
+  receives `WM_DPICHANGED` after our `SetWindowPos` and resizes itself to a size of its own choosing;
+  the delayed second pass puts our measurement back.
+- Every `SetWindowPos` is issued off the input thread. Writing to another process' window from
+  inside a hook callback means blocking for as long as that process takes — and that is the classic
+  way to get a hook dropped by Windows.
 
-DPI farkında olmayan pencereler varsayılan olarak atlanır: Windows onları bitmap olarak esnetir,
-dışarıdan yeniden boyutlandırmak bulanık ve kaymış sonuç verir.
+DPI unaware windows are skipped by default: Windows bitmap stretches them, and resizing one from the
+outside produces a blurry, mispositioned result.
 
-> **Not:** Masaüstünden dosya sürükleyip bırakırken imleç hizalaması tam olarak çalışır, ancak
-> sürükleme sırasında görünen yarı saydam dosya görüntüsü OLE tarafından kaynak DPI'da çizilir ve
-> süreç dışından yeniden ölçeklenemez. Bırakma işleminin kendisi doğru konuma iner.
+> **Note:** cursor alignment works fully while dragging a file from the desktop, but the translucent
+> drag image is drawn by OLE at the source DPI and cannot be rescaled from outside the process. The
+> drop itself lands in the right place.
 
-### Oyunlar ve tam ekran
+### Games and full screen
 
-| Durum | Varsayılan |
+| Situation | Default |
 |---|---|
-| Direct3D özel tam ekran | Duraklat — imleç zaten tek ekrana kilitli, müdahale etmenin faydası yok riski var |
-| Kenarlıksız tam ekran | İmleci düzelt, pencereyi asla yeniden boyutlandırma |
-| Anti-cheat çalışıyor | Tamamen dur — enjekte edilmiş imleç hareketi otomasyon olarak okunabilir |
-| Uygulama kuralı | Süreç adına göre üç davranıştan biri |
+| Direct3D exclusive full screen | Pause — the cursor is already confined to one display, so there is nothing to gain and something to lose |
+| Borderless full screen | Correct the cursor, never resize the window |
+| Anti-cheat running | Stand down completely — injected cursor movement can be read as automation |
+| Application rule | One of three behaviours, matched on the process name |
 
-Anti-cheat kontrolü, açıkça yazılmış bir kuralın bile üzerindedir. Yanlış tarafta olmanın bedelini
-uygulama değil kullanıcının hesabı öder.
+The anti-cheat check overrides even an explicit rule. The cost of being on the wrong side of that is
+paid by the user's account, not by this application.
 
-### Güvenilirlik
+### Reliability
 
-Bu tür bir aracın gerçek sınavı üç hafta ve kırk uyku döngüsü sonra hâlâ çalışıp çalışmadığıdır.
+The real test of a tool like this is whether it still works three weeks and forty sleep cycles later.
 
-- **Kanca kendi iş parçacığında.** `WH_MOUSE_LL` geri çağrısı kancayı kuran iş parçacığında
-  koşturulur ve Windows, `LowLevelHooksTimeout` süresini aşan kancaları haber vermeden düşürür.
-  Kanca arayüzde yaşasaydı yavaş bir XAML düzeni veya kalıcı bir iletişim kutusu uygulamayı sessizce
-  devre dışı bırakırdı.
-- **Gözcü.** Düşük seviye bir kancanın hâlâ zincirde olup olmadığını soran bir API yok. Tek güvenilir
-  sinyal bir çelişkidir: imleç gözle görülür şekilde hareket etmiş, ama geri çağrıya hiçbir olay
-  ulaşmamış. Bu ancak kanca gitmişse olur, ve bu tespit edildiğinde kanca yeniden kurulur.
-- **Sistem olayları.** Uyku dönüşü, oturum kilidi/açılması, kullanıcı değişimi ve ekran topolojisi
-  değişimi için ayrı kurtarma yolları vardır. Ekran değişimi geciktirilerek işlenir; Windows bu olayı
-  yerleşim oturana kadar birkaç kez ateşler.
-- **Yapılandırma.** Yazma işlemi geçici dosya üzerinden atomik olarak yapılır ve önceki iyi kopya
-  yedek olarak tutulur; bozuk dosya yedekten kurtarılır, sessizce sıfırlanmaz.
-- **Kanca zaman aşımı.** `LowLevelHooksTimeout` isteğe bağlı olarak yükseltilir. Geri çağrı normal
-  koşullarda bu bütçenin çok altındadır, ama ağır yük altında takılan bir makine sınırı aşabilir ve
-  kullanıcı bunu "uygulama rastgele durdu" olarak yaşar.
+- **The hook lives on its own thread.** A `WH_MOUSE_LL` callback runs on the thread that installed
+  the hook, and Windows drops hooks that overrun `LowLevelHooksTimeout` without telling anyone. If
+  the hook lived on the UI thread, a slow XAML layout pass or a modal dialog would be enough to
+  silently disable the application.
+- **A watchdog.** There is no API that asks whether a low level hook is still in the chain. The one
+  reliable signal is a contradiction: the cursor has visibly moved, yet no event reached the
+  callback. That can only mean the hook is gone, and when it is detected the hook is reinstalled.
+- **System events.** Resume from sleep, session lock and unlock, fast user switching and display
+  topology changes each have their own recovery path. Display changes are debounced, because Windows
+  raises that event several times while the layout settles.
+- **Configuration.** Writes go through a temporary file and are swapped in atomically while the
+  previous good copy is kept as a backup; a corrupt file is recovered from that backup rather than
+  silently reset.
+- **Hook timeout.** `LowLevelHooksTimeout` is optionally raised. The callback is far under that
+  budget in normal operation, but a machine stalling under heavy load can still trip it, and the
+  user experiences that as "the application randomly stopped".
 
-## Yapılandırma
+## Configuration
 
-Ayarlar `%LOCALAPPDATA%\CaYaScreenBridge\config.json` altındadır. Günlükler aynı klasördeki `logs`
-dizinindedir ve yedi gün sonra silinir.
+Settings live in `%LOCALAPPDATA%\CaYaScreenBridge\config.json`. Logs are in the `logs` folder beside
+it and are pruned after seven days.
 
-Ekran kalibrasyonu **profil** olarak saklanır ve profil kimliği bağlı ekranların kümesinden türetilir.
-Aynı dizüstü bilgisayarı evde ve ofiste farklı yerleşimlere takmak, her ikisinin de kendi
-kalibrasyonunu korumasını sağlar.
+The display calibration is stored as a **profile**, keyed by the set of attached displays. Docking
+the same laptop into two different setups lets each keep its own calibration.
 
-## Kaynaktan derleme
+The interface language follows Windows: Turkish when the system is Turkish, English otherwise. It can
+be overridden in the settings.
+
+## Building from source
 
 ```bash
 git clone https://github.com/CaYatur/CaYaScreenBridge.git
@@ -172,40 +181,40 @@ dotnet build CaYaScreenBridge.sln -c Release
 dotnet test tests/CaYaScreenBridge.Core.Tests
 ```
 
-WPF yalnızca Windows üzerinde derlenir. Çekirdek kütüphane (`CaYaScreenBridge.Core`) platformdan
-bağımsız `net8.0` hedefler ve algoritmanın tamamı orada yaşadığı için testler her yerde koşar.
+WPF only compiles on Windows. The core library (`CaYaScreenBridge.Core`) targets platform
+independent `net8.0`, and the whole algorithm lives there, so the tests run anywhere.
 
-İkonu yeniden üretmek için:
+To regenerate the icon:
 
 ```bash
 pip install Pillow
 python3 build/icon/generate_icon.py
 ```
 
-## Proje yapısı
+## Project layout
 
 ```
-src/CaYaScreenBridge.Core/          Platformdan bağımsız çekirdek
-  Geometry/                         Vektör, dikdörtgen, doğru-dikdörtgen kesişimi
-  Model/                            Ekran modeli, milimetre yerleşimi, EDID ayrıştırma
-  Algorithm/                        Geçiş çözücü, ham delta kalibrasyonu, pencere çözücü, politika
-  Config/                           Yapılandırma modeli ve dayanıklı depolama
-src/CaYaScreenBridge.Windows/       Windows katmanı ve arayüz
-  Native/                           P/Invoke tanımları
-  Platform/                         Monitör sayımı, EDID kayıt defteri okuması
-  Engine/                           Kanca iş parçacığı, ön plan gözlemcisi, sürükleme, orkestrasyon
-  Services/                         Başlangıç kaydı, tek örnek, dosya günlüğü
-  Ui/                               WPF arayüz, tepsi simgesi, yerleşim editörü
-tests/CaYaScreenBridge.Core.Tests/  Algoritma testleri
+src/CaYaScreenBridge.Core/          Platform independent core
+  Geometry/                         Vectors, rectangles, segment/rectangle intersection
+  Model/                            Display model, millimetre layout, EDID parsing
+  Algorithm/                        Transition solver, raw delta calibration, drag solver, policy
+  Config/                           Configuration model and resilient storage
+src/CaYaScreenBridge.Windows/       Windows layer and interface
+  Native/                           P/Invoke declarations
+  Platform/                         Monitor enumeration, EDID registry lookup
+  Engine/                           Hook thread, foreground watcher, dragging, orchestration
+  Services/                         Startup registration, single instance, file logging
+  Ui/                               WPF interface, tray icon, layout editor
+tests/CaYaScreenBridge.Core.Tests/  Algorithm tests
 ```
 
-## Katkıda bulunanlar
+## Contributors
 
-- **[CaYatur](https://github.com/CaYatur)** — proje sahibi, tasarım yönü ve gereksinimler
+- **[CaYatur](https://github.com/CaYatur)** — project owner, design direction and requirements
 
-## Lisans
+## License
 
-MIT — bkz. [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
 
 <div align="center">
 <sub><a href="https://cayadev.com">cayadev.com</a></sub>

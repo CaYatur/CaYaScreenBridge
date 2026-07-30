@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using CaYaScreenBridge.Core.Config;
@@ -5,6 +6,9 @@ using CaYaScreenBridge.Core.Diagnostics;
 using CaYaScreenBridge.Windows.Engine;
 using CaYaScreenBridge.Windows.Services;
 using CaYaScreenBridge.Windows.Ui;
+
+// Path is aliased because a WPF project can also have System.Windows.Shapes.Path in scope.
+using Path = System.IO.Path;
 
 namespace CaYaScreenBridge.Windows;
 

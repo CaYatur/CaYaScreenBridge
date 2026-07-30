@@ -8,24 +8,38 @@ namespace CaYaScreenBridge.Windows.Ui;
 ///
 /// A full resource assembly would be overkill for one window, and the tray menu has to be built in
 /// code anyway, so a dictionary lookup that both XAML and C# can reach is the simplest thing that
-/// covers the whole surface. Turkish is the default because that is the audience; the language is
-/// picked up from the system when the setting is left on "auto".
+/// covers the whole surface.
+///
+/// The interface follows the system language. Turkish is used when Windows is running in Turkish;
+/// everything else falls back to English, including languages this application has no translation
+/// for, so the interface is never a mix of the two.
 /// </summary>
 public static class Loc
 {
-    private static Dictionary<string, string> _active = Turkish;
+    private static Dictionary<string, string> _active;
 
-    public static string Language { get; private set; } = "tr";
+    static Loc()
+    {
+        // The tables are declared at the bottom of the file for readability, and static field
+        // initialisers run in textual order, so an inline initialiser here would capture null.
+        _active = English;
+    }
+
+    /// <summary>Two letter code of the language currently in use: "tr" or "en".</summary>
+    public static string Language { get; private set; } = "en";
 
     /// <summary>
-    /// Looks up a string, falling back to Turkish and finally to the key itself. Returning the key
+    /// Looks up a string, falling back to English and finally to the key itself. Returning the key
     /// rather than throwing means a missing entry shows up as an obviously wrong label instead of
     /// taking down the window it appears on.
     /// </summary>
     public static string Get(string key) =>
         _active.TryGetValue(key, out string? value) ? value :
-        Turkish.TryGetValue(key, out string? fallback) ? fallback : key;
+        English.TryGetValue(key, out string? fallback) ? fallback : key;
 
+    /// <summary>
+    /// Applies a language setting: "auto" follows Windows, otherwise an explicit "tr" or "en".
+    /// </summary>
     public static void Apply(string setting)
     {
         string language = setting;
