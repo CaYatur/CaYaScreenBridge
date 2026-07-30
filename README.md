@@ -194,10 +194,14 @@ src/CaYaScreenBridge.Windows/       Windows katmanı ve arayüz
   Native/                           P/Invoke tanımları
   Platform/                         Monitör sayımı, EDID kayıt defteri okuması
   Engine/                           Kanca iş parçacığı, ön plan gözlemcisi, sürükleme, orkestrasyon
-  System/                           Başlangıç kaydı, tek örnek, dosya günlüğü
+  Services/                         Başlangıç kaydı, tek örnek, dosya günlüğü
   Ui/                               WPF arayüz, tepsi simgesi, yerleşim editörü
 tests/CaYaScreenBridge.Core.Tests/  Algoritma testleri
 ```
+
+## Katkıda bulunanlar
+
+- **[CaYatur](https://github.com/CaYatur)** — proje sahibi, tasarım yönü ve gereksinimler
 
 ## Lisans
 

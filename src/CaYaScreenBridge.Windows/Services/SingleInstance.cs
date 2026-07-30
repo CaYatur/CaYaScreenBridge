@@ -1,4 +1,4 @@
-namespace CaYaScreenBridge.Windows.System;
+namespace CaYaScreenBridge.Windows.Services;
 
 /// <summary>
 /// Ensures one instance per user session, and lets a second launch bring the running instance's

@@ -1,7 +1,7 @@
 using System.Text;
 using CaYaScreenBridge.Core.Diagnostics;
 
-namespace CaYaScreenBridge.Windows.System;
+namespace CaYaScreenBridge.Windows.Services;
 
 /// <summary>
 /// Appends log entries to a daily file and prunes old ones, so a machine that has been running the

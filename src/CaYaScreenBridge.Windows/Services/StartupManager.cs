@@ -2,7 +2,7 @@ using System.Diagnostics;
 using CaYaScreenBridge.Core.Diagnostics;
 using Microsoft.Win32;
 
-namespace CaYaScreenBridge.Windows.System;
+namespace CaYaScreenBridge.Windows.Services;
 
 public enum StartupMethod
 {
