@@ -4,6 +4,7 @@ using CaYaScreenBridge.Core.Diagnostics;
 using CaYaScreenBridge.Core.Geometry;
 using CaYaScreenBridge.Core.Model;
 using CaYaScreenBridge.Windows.Native;
+using CaYaScreenBridge.Windows.Platform;
 using Microsoft.Win32;
 
 namespace CaYaScreenBridge.Windows.Engine;
