@@ -218,9 +218,11 @@
                                         <StackPanel Margin="0,0,18,0">
                                             <TextBlock Text="{ui:S Key=displays.size}" Style="{StaticResource Text.Hint}" Margin="0,0,0,4" />
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBox Width="82" Text="{Binding SelectedDisplay.WidthMm, StringFormat=N1, UpdateSourceTrigger=LostFocus}" />
+                                                <TextBox Width="82" SourceUpdated="OnDisplayFieldSourceUpdated"
+                                                         Text="{Binding SelectedDisplay.WidthMm, StringFormat=N1, UpdateSourceTrigger=PropertyChanged, NotifyOnSourceUpdated=True}" />
                                                 <TextBlock Text="×" Margin="8,0" VerticalAlignment="Center" />
-                                                <TextBox Width="82" Text="{Binding SelectedDisplay.HeightMm, StringFormat=N1, UpdateSourceTrigger=LostFocus}" />
+                                                <TextBox Width="82" SourceUpdated="OnDisplayFieldSourceUpdated"
+                                                         Text="{Binding SelectedDisplay.HeightMm, StringFormat=N1, UpdateSourceTrigger=PropertyChanged, NotifyOnSourceUpdated=True}" />
                                                 <TextBlock Text="{ui:S Key=common.mm}" Margin="8,0,0,0" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </StackPanel>
@@ -228,9 +230,11 @@
                                         <StackPanel Margin="0,0,18,0">
                                             <TextBlock Text="{ui:S Key=displays.position}" Style="{StaticResource Text.Hint}" Margin="0,0,0,4" />
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBox Width="82" Text="{Binding SelectedDisplay.LeftMm, StringFormat=N1, UpdateSourceTrigger=LostFocus}" />
+                                                <TextBox Width="82" SourceUpdated="OnDisplayFieldSourceUpdated"
+                                                         Text="{Binding SelectedDisplay.LeftMm, StringFormat=N1, UpdateSourceTrigger=PropertyChanged, NotifyOnSourceUpdated=True}" />
                                                 <TextBlock Text="," Margin="8,0" VerticalAlignment="Center" />
-                                                <TextBox Width="82" Text="{Binding SelectedDisplay.TopMm, StringFormat=N1, UpdateSourceTrigger=LostFocus}" />
+                                                <TextBox Width="82" SourceUpdated="OnDisplayFieldSourceUpdated"
+                                                         Text="{Binding SelectedDisplay.TopMm, StringFormat=N1, UpdateSourceTrigger=PropertyChanged, NotifyOnSourceUpdated=True}" />
                                                 <TextBlock Text="{ui:S Key=common.mm}" Margin="8,0,0,0" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </StackPanel>

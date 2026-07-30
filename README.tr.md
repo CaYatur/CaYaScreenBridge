@@ -30,7 +30,7 @@ tutar, her hareketi bu fiziksel uzayda çözer ve sonucu ancak en sonda piksele 
 | **Yörünge farkındalığı** | Hedef ekran, hareketin bittiği nokta ile değil, hareketin geçtiği yol ile belirlenir. Hızlı bir çapraz savurma, gerçekten üzerinden geçtiği ekrana iner. |
 | **Kenar destekli geçiş** | Windows imleci masaüstü kenarına sabitlediğinde hareket ham HID verisinden yeniden kurulur. Fiziksel olarak komşu ama piksel olarak kaymış ekranlara geçişi güvenilir yapan şey budur. |
 | **İmleç kaybolmaz** | L biçimli yerleşimlerde boşluğa düşen imleç, gidiş yönündeki en yakın ekrana yansıtılır. |
-| **Pencere sürükleme** | Pencere DPI sınırını geçtiği anda gerçek boyutunu koruyacak şekilde yeniden ölçeklenir; tuttuğunuz nokta imlecin altında kalır. |
+| **Pencere sürükleme** | İsteğe bağlı ölçeklendirme, pencere DPI sınırını geçtiğinde gerçek boyutu ve tutma noktasını korur. Ölçeklendirme modu varsayılan olarak kapalıdır. |
 | **Oyun ve tam ekran** | Özel tam ekran, kenarlıksız tam ekran ve anti-cheat durumları ayrı ayrı algılanır ve gerektiğinde uygulama tamamen yoldan çekilir. |
 | **Kendini onarır** | Kanca düşerse yeniden kurulur; uyku, oturum kilidi, ekran değişimi ve bozuk yapılandırma dosyası için ayrı kurtarma yolları vardır. |
 | **Görsel yerleşim editörü** | Ekranları gerçek göreli boyutlarıyla, milimetre uzayında sürükleyerek düzenlersiniz. |
@@ -125,12 +125,12 @@ dışarıdan yeniden boyutlandırmak bulanık ve kaymış sonuç verir.
 
 | Durum | Varsayılan |
 |---|---|
-| Direct3D özel tam ekran | Duraklat — imleç zaten tek ekrana kilitli, müdahale etmenin faydası yok riski var |
+| Direct3D özel tam ekran | Düzeltmeye devam et; duraklatma varsayılan olarak kapalıdır |
 | Kenarlıksız tam ekran | İmleci düzelt, pencereyi asla yeniden boyutlandırma |
-| Anti-cheat çalışıyor | Tamamen dur — enjekte edilmiş imleç hareketi otomasyon olarak okunabilir |
+| Anti-cheat çalışıyor | Düzeltmeye devam et; tamamen durdurma varsayılan olarak kapalıdır |
 | Uygulama kuralı | Süreç adına göre üç davranıştan biri |
 
-Anti-cheat kontrolü, açıkça yazılmış bir kuralın bile üzerindedir. Yanlış tarafta olmanın bedelini
+Anti-cheat koruması açıldığında, açıkça yazılmış bir kuralın bile üzerindedir. Yanlış tarafta olmanın bedelini
 uygulama değil kullanıcının hesabı öder.
 
 ### Güvenilirlik

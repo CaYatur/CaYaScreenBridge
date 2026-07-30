@@ -140,6 +140,8 @@ public sealed class ConfigStore
 
     private AppConfig Migrate(AppConfig config)
     {
+        int sourceSchemaVersion = config.SchemaVersion;
+
         if (config.SchemaVersion > AppConfig.CurrentSchemaVersion)
         {
             _log.Warn(
@@ -155,6 +157,13 @@ public sealed class ConfigStore
         config.Games ??= new GameSettings();
         config.Rules ??= new List<AppRule>();
         config.Profiles ??= new List<LayoutProfile>();
+
+        if (sourceSchemaVersion < 2)
+        {
+            config.Drag.Mode = DragScalingMode.Off;
+            config.Games.PauseInExclusiveFullScreen = false;
+            config.Games.PauseForAntiCheat = false;
+        }
 
         // Guard against out of range values that a hand edited file could introduce and that would
         // otherwise reach the hook callback.

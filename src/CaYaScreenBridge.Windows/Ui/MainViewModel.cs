@@ -349,6 +349,16 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        // Pin the complete current layout before rebuilding it. Saving only the moved panel leaves
+        // untouched panels without position overrides, so LayoutBuilder reconstructs them from the
+        // Windows arrangement and makes the edited panel appear to jump on mouse release.
+        foreach (DisplayItem display in Displays)
+        {
+            DisplayOverride position = profile.GetOrCreate(display.StableId);
+            position.PhysicalLeftMm = Math.Round(display.LeftMm, 2);
+            position.PhysicalTopMm = Math.Round(display.TopMm, 2);
+        }
+
         DisplayOverride ovr = profile.GetOrCreate(item.StableId);
         ovr.Label = item.Label;
         ovr.PhysicalLeftMm = Math.Round(item.LeftMm, 2);

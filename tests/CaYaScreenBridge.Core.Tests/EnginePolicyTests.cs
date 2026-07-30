@@ -9,14 +9,14 @@ public class EnginePolicyTests
     private static AppConfig Config() => new();
 
     [Fact]
-    public void NormalForegroundGetsFullCorrection()
+    public void NormalForegroundCorrectsCursorButWindowScalingIsOffByDefault()
     {
         PolicyDecision decision = EnginePolicy.Evaluate(
             Config(),
             new ForegroundState("explorer", ForegroundKind.Normal, false, false));
 
         Assert.True(decision.CorrectCursor);
-        Assert.True(decision.ScaleWindows);
+        Assert.False(decision.ScaleWindows);
     }
 
     /// <summary>
@@ -25,9 +25,10 @@ public class EnginePolicyTests
     /// user's account rather than on this application.
     /// </summary>
     [Fact]
-    public void AntiCheatOverridesEvenAnExplicitRule()
+    public void AntiCheatOverridesEvenAnExplicitRuleWhenEnabled()
     {
         AppConfig config = Config();
+        config.Games.PauseForAntiCheat = true;
         config.Rules.Add(new AppRule { Process = "game", Action = RuleAction.Correct });
 
         PolicyDecision decision = EnginePolicy.Evaluate(
@@ -40,14 +41,15 @@ public class EnginePolicyTests
     }
 
     [Fact]
-    public void ExclusiveFullScreenPausesByDefault()
+    public void ExclusiveFullScreenKeepsCorrectingByDefault()
     {
         PolicyDecision decision = EnginePolicy.Evaluate(
             Config(),
             new ForegroundState("game", ForegroundKind.ExclusiveFullScreen, false, false));
 
-        Assert.False(decision.CorrectCursor);
-        Assert.Equal("exclusive-fullscreen", decision.Reason);
+        Assert.True(decision.CorrectCursor);
+        Assert.False(decision.ScaleWindows);
+        Assert.Equal("normal", decision.Reason);
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Markup;
 using System.Windows.Media;
 using CaYaScreenBridge.Core.Diagnostics;
 using CaYaScreenBridge.Windows.Native;
@@ -60,6 +61,10 @@ public sealed class TrayIcon : IDisposable
     public void UpdateState(bool active)
     {
         _toggleItem.Header = active ? Loc.Get("tray.pause") : Loc.Get("tray.resume");
+        if (_toggleItem.Icon is TextBlock icon)
+        {
+            icon.Text = active ? "Ⅱ" : "▶";
+        }
         SetTooltip(active ? Loc.Get("tray.tipRunning") : Loc.Get("tray.tipPaused"));
     }
 
@@ -174,12 +179,15 @@ public sealed class TrayIcon : IDisposable
             Padding = new Thickness(4),
         };
 
-        MenuItem show = CreateItem(Loc.Get("tray.show"), () => ShowRequested?.Invoke());
+        menu.Resources.Add(typeof(MenuItem), CreateMenuItemStyle());
+        menu.Resources.Add(typeof(Separator), CreateSeparatorStyle());
+
+        MenuItem show = CreateItem(CreateSettingsIcon(), Loc.Get("tray.show"), () => ShowRequested?.Invoke());
         show.FontWeight = FontWeights.SemiBold;
 
-        toggleItem = CreateItem(Loc.Get("tray.pause"), () => ToggleRequested?.Invoke());
-        MenuItem rebuild = CreateItem(Loc.Get("tray.rebuild"), () => RebuildRequested?.Invoke());
-        MenuItem exit = CreateItem(Loc.Get("tray.exit"), () => ExitRequested?.Invoke());
+        toggleItem = CreateItem("Ⅱ", Loc.Get("tray.pause"), () => ToggleRequested?.Invoke());
+        MenuItem rebuild = CreateItem("↻", Loc.Get("tray.rebuild"), () => RebuildRequested?.Invoke());
+        MenuItem exit = CreateItem("⏻", Loc.Get("tray.exit"), () => ExitRequested?.Invoke());
 
         menu.Items.Add(show);
         menu.Items.Add(new Separator());
@@ -191,13 +199,24 @@ public sealed class TrayIcon : IDisposable
         return menu;
     }
 
-    private static MenuItem CreateItem(string header, Action action)
+    private static MenuItem CreateItem(object glyph, string header, Action action)
     {
         var item = new MenuItem
         {
             Header = header,
+            Icon = glyph is string text
+                ? new TextBlock
+                {
+                    Text = text,
+                    Foreground = Brushes.White,
+                    FontSize = 14,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                }
+                : glyph,
+            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x18, 0x26)),
             Foreground = Brushes.White,
-            Padding = new Thickness(10, 6, 10, 6),
+            Padding = new Thickness(8, 7, 12, 7),
         };
 
         item.Click += (_, _) => action();
@@ -208,6 +227,107 @@ public sealed class TrayIcon : IDisposable
     /// Takes the icon straight out of the executable rather than decoding the WPF resource, so the
     /// tray gets a real HICON at the size the shell asked for.
     /// </summary>
+    private static FrameworkElement CreateSettingsIcon()
+    {
+        var canvas = new Canvas
+        {
+            Width = 16,
+            Height = 16,
+            SnapsToDevicePixels = true,
+        };
+
+        var topLine = new System.Windows.Shapes.Line
+        {
+            X1 = 2,
+            Y1 = 5,
+            X2 = 14,
+            Y2 = 5,
+            Stroke = Brushes.White,
+            StrokeThickness = 1.6,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+        };
+        var bottomLine = new System.Windows.Shapes.Line
+        {
+            X1 = 2,
+            Y1 = 11,
+            X2 = 14,
+            Y2 = 11,
+            Stroke = Brushes.White,
+            StrokeThickness = 1.6,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+        };
+        var topKnob = new System.Windows.Shapes.Ellipse
+        {
+            Width = 4,
+            Height = 4,
+            Fill = new SolidColorBrush(Color.FromRgb(0x14, 0x18, 0x26)),
+            Stroke = Brushes.White,
+            StrokeThickness = 1.5,
+        };
+        var bottomKnob = new System.Windows.Shapes.Ellipse
+        {
+            Width = 4,
+            Height = 4,
+            Fill = new SolidColorBrush(Color.FromRgb(0x14, 0x18, 0x26)),
+            Stroke = Brushes.White,
+            StrokeThickness = 1.5,
+        };
+
+        Canvas.SetLeft(topKnob, 8);
+        Canvas.SetTop(topKnob, 3);
+        Canvas.SetLeft(bottomKnob, 4);
+        Canvas.SetTop(bottomKnob, 9);
+
+        canvas.Children.Add(topLine);
+        canvas.Children.Add(bottomLine);
+        canvas.Children.Add(topKnob);
+        canvas.Children.Add(bottomKnob);
+        return canvas;
+    }
+
+    private static Style CreateMenuItemStyle()
+    {
+        const string xaml = """
+            <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   TargetType="{x:Type MenuItem}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type MenuItem}">
+                            <Border x:Name="Root" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <ContentPresenter Grid.Column="0" ContentSource="Icon" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Root" Property="Background" Value="#252B3D"/></Trigger>
+                                <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Root" Property="Opacity" Value="0.45"/></Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            """;
+        return (Style)XamlReader.Parse(xaml);
+    }
+
+    private static Style CreateSeparatorStyle()
+    {
+        const string xaml = """
+            <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   TargetType="{x:Type Separator}">
+                <Setter Property="Margin" Value="4,3"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type Separator}"><Border Height="1" Background="#3A4258"/></ControlTemplate></Setter.Value></Setter>
+            </Style>
+            """;
+        return (Style)XamlReader.Parse(xaml);
+    }
+
     private nint LoadApplicationIcon()
     {
         try

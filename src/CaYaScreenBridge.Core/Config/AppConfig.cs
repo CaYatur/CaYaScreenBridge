@@ -36,7 +36,7 @@ public enum RuleAction
 
 public sealed class AppConfig
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -129,7 +129,7 @@ public sealed class TransitionSettings
 
 public sealed class DragSettings
 {
-    public DragScalingMode Mode { get; set; } = DragScalingMode.Live;
+    public DragScalingMode Mode { get; set; } = DragScalingMode.Off;
 
     /// <summary>Keep the point the user grabbed under the cursor after the window is rescaled.</summary>
     public bool PreserveGrabPoint { get; set; } = true;
@@ -150,16 +150,16 @@ public sealed class DragSettings
 public sealed class GameSettings
 {
     /// <summary>Stop correcting while an exclusive full screen application is running.</summary>
-    public bool PauseInExclusiveFullScreen { get; set; } = true;
+    public bool PauseInExclusiveFullScreen { get; set; } = false;
 
     /// <summary>Keep correcting in borderless full screen, but never rescale those windows.</summary>
     public bool CorrectInBorderlessFullScreen { get; set; } = true;
 
     /// <summary>
     /// Suspend everything while a known anti-cheat service is running. Injected cursor movement can
-    /// be read as automation by kernel anti-cheat, so the safe default is to stay out of the way.
+    /// be read as automation by kernel anti-cheat; this protection is available but disabled by default.
     /// </summary>
-    public bool PauseForAntiCheat { get; set; } = true;
+    public bool PauseForAntiCheat { get; set; } = false;
 
     public List<string> AntiCheatProcesses { get; set; } = new()
     {

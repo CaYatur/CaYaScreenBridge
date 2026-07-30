@@ -91,6 +91,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnDisplayFieldSourceUpdated(object sender, System.Windows.Data.DataTransferEventArgs e)
+    {
+        if (_viewModel.SelectedDisplay is { } item)
+        {
+            _viewModel.CommitDisplay(item);
+            Editor.Refresh();
+        }
+    }
+
     private void OnTabChanged(object sender, SelectionChangedEventArgs e)
     {
         if (e.Source is TabControl)

@@ -207,14 +207,17 @@ public sealed class CursorRouter
     private DisplayZone Solve(DisplayZone source, Vec2 fromMm, Vec2 toMm, out Vec2 landingMm)
     {
         // a) The straightforward case: the destination is on a display.
+        Vec2 delta = toMm - fromMm;
+
         DisplayZone? direct = FindPhysical(toMm);
-        if (direct is not null)
+        if (direct is not null &&
+            (ReferenceEquals(direct, source) || IsContinuousCrossing(source, direct, fromMm, delta)))
         {
             landingMm = toMm;
             return direct;
         }
 
-        Vec2 delta = toMm - fromMm;
+
 
         // b) The movement passed over a display but overshot it. Entering that display is what the
         //    user meant, so keep the travel and clamp onto the display that was crossed. This is
@@ -243,7 +246,9 @@ public sealed class CursorRouter
 
         // d) The movement ended in dead space: a bezel gap, or the notch of an L shaped layout.
         //    Project onto the most plausible display instead of stranding the cursor.
-        DisplayZone best = ChooseFallback(source, fromMm, toMm);
+        // No physically continuous edge was crossed. Keep the pointer on the source display instead
+        // of allowing a fast sample to jump across a gap or a forbidden section of the border.
+        DisplayZone best = source;
         landingMm = best.PhysicalBounds.ClampInside(toMm, MmMarginFor(best));
         return best;
     }
@@ -282,7 +287,7 @@ public sealed class CursorRouter
                 continue;
             }
 
-            if (exit < 0 || entry > 1)
+            if (exit < 0 || entry > 1 || !IsContinuousCrossing(source, zone, fromMm, delta))
             {
                 continue;
             }
@@ -302,6 +307,18 @@ public sealed class CursorRouter
     /// Picks a display for a movement that ended in dead space. Distance decides, but displays that
     /// sit behind the direction of travel are penalised so the cursor does not snap backwards.
     /// </summary>
+    private static bool IsContinuousCrossing(DisplayZone source, DisplayZone target, Vec2 fromMm, Vec2 delta)
+    {
+        if (!RayCast.SegmentIntersectsRect(fromMm, delta, source.PhysicalBounds, out _, out double sourceExit) ||
+            !RayCast.SegmentIntersectsRect(fromMm, delta, target.PhysicalBounds, out double targetEntry, out _))
+        {
+            return false;
+        }
+
+        const double epsilonMm = 0.001;
+        return Math.Abs(targetEntry - sourceExit) <= epsilonMm;
+    }
+
     private DisplayZone ChooseFallback(DisplayZone source, Vec2 fromMm, Vec2 toMm)
     {
         Vec2 direction = (toMm - fromMm).Normalized();

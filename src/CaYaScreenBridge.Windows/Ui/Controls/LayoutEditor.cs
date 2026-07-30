@@ -152,6 +152,13 @@ public sealed class LayoutEditor : FrameworkElement
     {
         _items = items;
 
+        if (_selected is not null)
+        {
+            // RebuildLayout replaces DisplayItem instances. Remap the selection to the fresh item
+            // instead of keeping a stale object whose coordinates no longer drive the editor.
+            _selected = items.FirstOrDefault(i => i.StableId == _selected.StableId);
+        }
+
         if (_selected is not null && !items.Any(i => i.StableId == _selected.StableId))
         {
             _selected = null;
@@ -180,7 +187,13 @@ public sealed class LayoutEditor : FrameworkElement
             return;
         }
 
-        RecomputeTransform();
+        // Keep the view transform fixed for the whole drag. Re-fitting the extents after every
+        // mouse move changes both scale and origin while _dragOriginPx still belongs to the old
+        // transform, which makes the panel slide away from the pointer (usually upward).
+        if (_dragging is null)
+        {
+            RecomputeTransform();
+        }
         DrawGrid(dc, bounds);
 
         foreach (DisplayItem item in _items)
@@ -296,6 +309,15 @@ public sealed class LayoutEditor : FrameworkElement
         {
             return;
         }
+
+        FormattedText position = Format(
+            string.Create(CultureInfo.CurrentCulture, $"Konum: {item.LeftMm:0.0}, {item.TopMm:0.0} mm"),
+            11,
+            _textDim,
+            _typefaceSmall,
+            rect.Width - 20);
+
+        dc.DrawText(position, new Point(rect.Left + 10, rect.Bottom - 42));
 
         FormattedText physical = Format(
             string.Create(CultureInfo.CurrentCulture, $"{item.WidthMm:0} × {item.HeightMm:0} mm · {item.PhysicalDpi:0} DPI"),

@@ -30,7 +30,7 @@ movement in that physical space, and converts back to pixels only at the very en
 | **Trajectory aware** | The destination is chosen from the path the movement took, not from where it happened to end. A fast diagonal flick lands on the screen it actually crossed. |
 | **Edge assisted crossing** | When Windows pins the cursor to the edge of the desktop, the rest of the movement is reconstructed from raw HID data. This is what makes crossings into a physically adjacent but pixel offset display reliable. |
 | **The cursor is never lost** | A movement ending in the dead space of an L shaped layout is projected onto the nearest display in the direction of travel. |
-| **Window dragging** | A window is rescaled the moment it crosses a DPI boundary so it keeps its real size, and the point you grabbed stays under the pointer. |
+| **Window dragging** | Optional scaling preserves a window's real size and grab point across DPI boundaries. Scaling mode is off by default. |
 | **Games and full screen** | Exclusive full screen, borderless full screen and anti-cheat are each detected separately, and the application gets out of the way when it should. |
 | **It repairs itself** | A dropped hook is reinstalled; sleep, session lock, display changes and a corrupt configuration file each have their own recovery path. |
 | **Visual layout editor** | Displays are arranged by dragging them at their true relative sizes, in millimetre space. |
@@ -131,12 +131,12 @@ outside produces a blurry, mispositioned result.
 
 | Situation | Default |
 |---|---|
-| Direct3D exclusive full screen | Pause — the cursor is already confined to one display, so there is nothing to gain and something to lose |
+| Direct3D exclusive full screen | Keep correcting; pausing is off by default |
 | Borderless full screen | Correct the cursor, never resize the window |
-| Anti-cheat running | Stand down completely — injected cursor movement can be read as automation |
+| Anti-cheat running | Keep correcting; standing down completely is off by default |
 | Application rule | One of three behaviours, matched on the process name |
 
-The anti-cheat check overrides even an explicit rule. The cost of being on the wrong side of that is
+When enabled, the anti-cheat check overrides even an explicit rule. The cost of being on the wrong side of that is
 paid by the user's account, not by this application.
 
 ### Reliability
