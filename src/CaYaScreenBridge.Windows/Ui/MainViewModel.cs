@@ -127,10 +127,10 @@ public sealed class MainViewModel : ObservableObject
 
     public string StatusText => _status switch
     {
-        { Running: false } => Loc["overview.paused"],
-        { HookInstalled: false } => Loc["overview.paused"],
-        { CorrectingCursor: false } => Loc["overview.paused"],
-        _ => Loc["overview.running"],
+        { Running: false } => Loc.Get("overview.paused"),
+        { HookInstalled: false } => Loc.Get("overview.paused"),
+        { CorrectingCursor: false } => Loc.Get("overview.paused"),
+        _ => Loc.Get("overview.running"),
     };
 
     public string PolicyText => _status.PolicyReason;
@@ -599,9 +599,9 @@ public sealed class MainViewModel : ObservableObject
 
         string method = status.Method switch
         {
-            StartupMethod.ScheduledTask => Loc["startup.method.task"],
-            StartupMethod.RunKey => Loc["startup.method.run"],
-            _ => Loc["startup.method.none"],
+            StartupMethod.ScheduledTask => Loc.Get("startup.method.task"),
+            StartupMethod.RunKey => Loc.Get("startup.method.run"),
+            _ => Loc.Get("startup.method.none"),
         };
 
         StartupSummary = status.Detail is { Length: > 0 } detail ? $"{method} — {detail}" : method;

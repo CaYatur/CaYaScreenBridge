@@ -17,7 +17,12 @@ public static class Loc
 
     public static string Language { get; private set; } = "tr";
 
-    public static string this[string key] =>
+    /// <summary>
+    /// Looks up a string, falling back to Turkish and finally to the key itself. Returning the key
+    /// rather than throwing means a missing entry shows up as an obviously wrong label instead of
+    /// taking down the window it appears on.
+    /// </summary>
+    public static string Get(string key) =>
         _active.TryGetValue(key, out string? value) ? value :
         Turkish.TryGetValue(key, out string? fallback) ? fallback : key;
 
@@ -312,5 +317,5 @@ public sealed class SExtension : MarkupExtension
 
     public string Key { get; set; } = string.Empty;
 
-    public override object ProvideValue(IServiceProvider serviceProvider) => Loc[Key];
+    public override object ProvideValue(IServiceProvider serviceProvider) => Loc.Get(Key);
 }

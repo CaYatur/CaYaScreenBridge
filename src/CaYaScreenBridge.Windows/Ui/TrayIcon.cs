@@ -59,8 +59,8 @@ public sealed class TrayIcon : IDisposable
 
     public void UpdateState(bool active)
     {
-        _toggleItem.Header = active ? Loc["tray.pause"] : Loc["tray.resume"];
-        SetTooltip(active ? Loc["tray.tipRunning"] : Loc["tray.tipPaused"]);
+        _toggleItem.Header = active ? Loc.Get("tray.pause") : Loc.Get("tray.resume");
+        SetTooltip(active ? Loc.Get("tray.tipRunning") : Loc.Get("tray.tipPaused"));
     }
 
     public void ShowMessage(string title, string message, bool warning = false)
@@ -87,7 +87,7 @@ public sealed class TrayIcon : IDisposable
         data.uFlags = Win32.NIF_MESSAGE | Win32.NIF_ICON | Win32.NIF_TIP;
         data.uCallbackMessage = Win32.WM_BRIDGE_TRAY;
         data.hIcon = _iconHandle;
-        data.szTip = Loc["tray.tipRunning"];
+        data.szTip = Loc.Get("tray.tipRunning");
 
         _added = Win32.Shell_NotifyIconW(Win32.NIM_ADD, ref data);
 
@@ -174,12 +174,12 @@ public sealed class TrayIcon : IDisposable
             Padding = new Thickness(4),
         };
 
-        MenuItem show = CreateItem(Loc["tray.show"], () => ShowRequested?.Invoke());
+        MenuItem show = CreateItem(Loc.Get("tray.show"), () => ShowRequested?.Invoke());
         show.FontWeight = FontWeights.SemiBold;
 
-        toggleItem = CreateItem(Loc["tray.pause"], () => ToggleRequested?.Invoke());
-        MenuItem rebuild = CreateItem(Loc["tray.rebuild"], () => RebuildRequested?.Invoke());
-        MenuItem exit = CreateItem(Loc["tray.exit"], () => ExitRequested?.Invoke());
+        toggleItem = CreateItem(Loc.Get("tray.pause"), () => ToggleRequested?.Invoke());
+        MenuItem rebuild = CreateItem(Loc.Get("tray.rebuild"), () => RebuildRequested?.Invoke());
+        MenuItem exit = CreateItem(Loc.Get("tray.exit"), () => ExitRequested?.Invoke());
 
         menu.Items.Add(show);
         menu.Items.Add(new Separator());

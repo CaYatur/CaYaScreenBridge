@@ -28,7 +28,7 @@ public sealed class HealthBrushConverter : IValueConverter
 public sealed class OnOffConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is true ? Loc["common.on"] : Loc["common.off"];
+        value is true ? Loc.Get("common.on") : Loc.Get("common.off");
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         Binding.DoNothing;
