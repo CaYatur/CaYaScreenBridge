@@ -1,0 +1,27 @@
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!--
+      Nullable warnings are surfaced but not fatal. The XAML compiler emits x:Name backing fields
+      into generated code without nullable annotations, so promoting CS8618 to an error would fail
+      the build on code this repository does not write.
+    -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Product>CaYaScreenBridge</Product>
+    <Company>CaYaDev</Company>
+    <Authors>CaYaDev</Authors>
+    <Copyright>Copyright (c) CaYaDev</Copyright>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <RepositoryUrl>https://github.com/CaYatur/CaYaScreenBridge</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>

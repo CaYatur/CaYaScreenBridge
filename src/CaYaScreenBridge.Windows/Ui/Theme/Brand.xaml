@@ -1,0 +1,64 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        The CaYaDev palette: a near black base with a deep red glow, a single saturated red accent
+        and white typography. Everything else is a neutral step between the two.
+    -->
+
+    <Color x:Key="Color.Base">#FF080A12</Color>
+    <Color x:Key="Color.Surface">#FF0E111B</Color>
+    <Color x:Key="Color.SurfaceRaised">#FF141826</Color>
+    <Color x:Key="Color.SurfaceHover">#FF1B2032</Color>
+    <Color x:Key="Color.Border">#FF232A3D</Color>
+    <Color x:Key="Color.BorderStrong">#FF333C55</Color>
+
+    <Color x:Key="Color.Accent">#FFE5202B</Color>
+    <Color x:Key="Color.AccentHover">#FFF23A45</Color>
+    <Color x:Key="Color.AccentPressed">#FFB8151E</Color>
+    <Color x:Key="Color.AccentDeep">#FF5A0D16</Color>
+    <Color x:Key="Color.AccentGlow">#33E5202B</Color>
+
+    <Color x:Key="Color.Text">#FFFFFFFF</Color>
+    <Color x:Key="Color.TextSecondary">#FFA8AEBF</Color>
+    <Color x:Key="Color.TextMuted">#FF6B7280</Color>
+
+    <Color x:Key="Color.Success">#FF22C55E</Color>
+    <Color x:Key="Color.Warning">#FFF59E0B</Color>
+    <Color x:Key="Color.Danger">#FFEF4444</Color>
+
+    <SolidColorBrush x:Key="Brush.Base" Color="{StaticResource Color.Base}" />
+    <SolidColorBrush x:Key="Brush.Surface" Color="{StaticResource Color.Surface}" />
+    <SolidColorBrush x:Key="Brush.SurfaceRaised" Color="{StaticResource Color.SurfaceRaised}" />
+    <SolidColorBrush x:Key="Brush.SurfaceHover" Color="{StaticResource Color.SurfaceHover}" />
+    <SolidColorBrush x:Key="Brush.Border" Color="{StaticResource Color.Border}" />
+    <SolidColorBrush x:Key="Brush.BorderStrong" Color="{StaticResource Color.BorderStrong}" />
+    <SolidColorBrush x:Key="Brush.Accent" Color="{StaticResource Color.Accent}" />
+    <SolidColorBrush x:Key="Brush.AccentHover" Color="{StaticResource Color.AccentHover}" />
+    <SolidColorBrush x:Key="Brush.AccentPressed" Color="{StaticResource Color.AccentPressed}" />
+    <SolidColorBrush x:Key="Brush.Text" Color="{StaticResource Color.Text}" />
+    <SolidColorBrush x:Key="Brush.TextSecondary" Color="{StaticResource Color.TextSecondary}" />
+    <SolidColorBrush x:Key="Brush.TextMuted" Color="{StaticResource Color.TextMuted}" />
+    <SolidColorBrush x:Key="Brush.Success" Color="{StaticResource Color.Success}" />
+    <SolidColorBrush x:Key="Brush.Warning" Color="{StaticResource Color.Warning}" />
+    <SolidColorBrush x:Key="Brush.Danger" Color="{StaticResource Color.Danger}" />
+
+    <!-- The hero glow from the CaYaDev site, used behind the window header. -->
+    <RadialGradientBrush x:Key="Brush.HeroGlow" GradientOrigin="0.15,0.9" Center="0.15,0.9" RadiusX="1.1" RadiusY="1.3">
+        <GradientStop Color="#FF3A0810" Offset="0" />
+        <GradientStop Color="#FF16101C" Offset="0.55" />
+        <GradientStop Color="{StaticResource Color.Base}" Offset="1" />
+    </RadialGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.AccentBar" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="{StaticResource Color.Accent}" Offset="0" />
+        <GradientStop Color="{StaticResource Color.AccentDeep}" Offset="1" />
+    </LinearGradientBrush>
+
+    <FontFamily x:Key="Font.Ui">Segoe UI Variable Display, Segoe UI, Inter, sans-serif</FontFamily>
+    <FontFamily x:Key="Font.Mono">Cascadia Mono, Consolas, monospace</FontFamily>
+
+    <CornerRadius x:Key="Radius.Card">10</CornerRadius>
+    <CornerRadius x:Key="Radius.Control">6</CornerRadius>
+
+</ResourceDictionary>

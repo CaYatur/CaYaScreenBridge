@@ -1,0 +1,20 @@
+<Application x:Class="CaYaScreenBridge.Windows.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:CaYaScreenBridge.Windows.Ui"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Ui/Theme/Brand.xaml" />
+                <ResourceDictionary Source="Ui/Theme/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <ui:HealthBrushConverter x:Key="HealthBrush" />
+            <ui:OnOffConverter x:Key="OnOff" />
+            <ui:EnumIndexConverter x:Key="EnumIndex" />
+            <ui:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

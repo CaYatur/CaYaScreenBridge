@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>CaYaScreenBridge.Core</RootNamespace>
+    <AssemblyName>CaYaScreenBridge.Core</AssemblyName>
+    <!-- The hot path runs inside a WH_MOUSE_LL callback: no unnecessary safety overhead. -->
+    <Optimize Condition="'$(Configuration)' == 'Release'">true</Optimize>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CaYaScreenBridge.Core.Tests" />
+  </ItemGroup>
+
+</Project>
