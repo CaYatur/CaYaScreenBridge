@@ -18,6 +18,10 @@ jobs:
     # other platform, so the whole solution is built here.
     runs-on: windows-latest
 
+    # Needed by the release step on a tag push; the read only default would fail it.
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 
