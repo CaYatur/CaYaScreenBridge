@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Publish a release with this version, for example 1.0.0. Leave empty to only build."
+        required: false
+        default: ""
 
 env:
   DOTNET_NOLOGO: true
@@ -48,9 +53,13 @@ jobs:
       - name: Determine version
         id: version
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
           if ($env:GITHUB_REF -like "refs/tags/v*") {
             $version = $env:GITHUB_REF -replace "refs/tags/v", ""
+          } elseif ($env:RELEASE_VERSION) {
+            $version = $env:RELEASE_VERSION.TrimStart("v")
           } else {
             $version = "1.0.0-build.$env:GITHUB_RUN_NUMBER"
           }
@@ -91,9 +100,15 @@ jobs:
           name: CaYaScreenBridge-${{ steps.version.outputs.version }}
           path: artifacts/dist
 
+      # Publishes either from a pushed v* tag, or on demand from the Actions tab by supplying a
+      # version. The action creates the tag itself when it does not exist yet, so a release can be
+      # cut without needing tag push rights.
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_version != ''
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/dist/*
+          tag_name: v${{ steps.version.outputs.version }}
+          name: CaYaScreenBridge ${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
