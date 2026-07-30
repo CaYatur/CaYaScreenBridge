@@ -208,10 +208,6 @@ src/CaYaScreenBridge.Windows/       Windows layer and interface
 tests/CaYaScreenBridge.Core.Tests/  Algorithm tests
 ```
 
-## Contributors
-
-- **[CaYatur](https://github.com/CaYatur)** — project owner, design direction and requirements
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
