@@ -112,7 +112,7 @@
                     </Style>
                 </TabControl.ItemContainerStyle>
 
-                <!-- ---------- Overview ---------- -->
+                <!-- Overview -->
                 <TabItem Header="{ui:S Key=nav.overview}">
                     <ScrollViewer Padding="28,24" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
@@ -185,7 +185,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- ---------- Displays ---------- -->
+                <!-- Displays -->
                 <TabItem Header="{ui:S Key=nav.displays}">
                     <Grid Margin="28,24">
                         <Grid.RowDefinitions>
@@ -249,7 +249,7 @@
                     </Grid>
                 </TabItem>
 
-                <!-- ---------- Transition ---------- -->
+                <!-- Transition -->
                 <TabItem Header="{ui:S Key=nav.transition}">
                     <ScrollViewer Padding="28,24" VerticalScrollBarVisibility="Auto">
                         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
@@ -304,7 +304,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- ---------- Drag ---------- -->
+                <!-- Drag -->
                 <TabItem Header="{ui:S Key=nav.drag}">
                     <ScrollViewer Padding="28,24" VerticalScrollBarVisibility="Auto">
                         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
@@ -353,7 +353,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- ---------- Rules ---------- -->
+                <!-- Rules -->
                 <TabItem Header="{ui:S Key=nav.rules}">
                     <Grid Margin="28,24">
                         <Grid.RowDefinitions>
@@ -417,7 +417,7 @@
                     </Grid>
                 </TabItem>
 
-                <!-- ---------- Startup ---------- -->
+                <!-- Startup -->
                 <TabItem Header="{ui:S Key=nav.startup}">
                     <ScrollViewer Padding="28,24" VerticalScrollBarVisibility="Auto">
                         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
@@ -465,7 +465,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- ---------- Diagnostics ---------- -->
+                <!-- Diagnostics -->
                 <TabItem Header="{ui:S Key=nav.diagnostics}">
                     <Grid Margin="28,24">
                         <Grid.RowDefinitions>
