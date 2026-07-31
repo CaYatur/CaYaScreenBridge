@@ -68,6 +68,35 @@ public sealed class ConfigStore
         }
     }
 
+    public AppConfig Import(string sourcePath)
+    {
+        lock (_ioLock)
+        {
+            if (!TryRead(sourcePath, out AppConfig? imported) || imported is null)
+            {
+                throw new InvalidDataException("The selected settings file is not a valid CaYaScreenBridge configuration.");
+            }
+
+            return Migrate(imported);
+        }
+    }
+
+    public void Export(AppConfig config, string targetPath)
+    {
+        lock (_ioLock)
+        {
+            string? parent = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrWhiteSpace(parent))
+            {
+                System.IO.Directory.CreateDirectory(parent);
+            }
+
+            string temp = targetPath + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(config, SerializerOptions));
+            File.Move(temp, targetPath, overwrite: true);
+        }
+    }
+
     public void Save(AppConfig config)
     {
         lock (_ioLock)
@@ -153,6 +182,7 @@ public sealed class ConfigStore
         config.SchemaVersion = AppConfig.CurrentSchemaVersion;
         config.General ??= new GeneralSettings();
         config.Transition ??= new TransitionSettings();
+        config.Transition.DisplayResistance ??= new List<DisplayResistanceSettings>();
         config.Drag ??= new DragSettings();
         config.Games ??= new GameSettings();
         config.Rules ??= new List<AppRule>();
@@ -165,10 +195,37 @@ public sealed class ConfigStore
             config.Games.PauseForAntiCheat = false;
         }
 
+        if (sourceSchemaVersion < 3)
+        {
+            config.Games.DeepWindowsIntegration = false;
+        }
+
+        if (sourceSchemaVersion < 4)
+        {
+            config.Drag.SeamlessCrossDisplay = true;
+        }
+
         // Guard against out of range values that a hand edited file could introduce and that would
         // otherwise reach the hook callback.
         config.Transition.BorderResistanceMm = Math.Clamp(config.Transition.BorderResistanceMm, 0, 200);
         config.Transition.ResistanceResetMs = Math.Clamp(config.Transition.ResistanceResetMs, 50, 5000);
+        config.Transition.ResistanceSpeedReferenceMmPerSecond = Math.Clamp(
+            config.Transition.ResistanceSpeedReferenceMmPerSecond, 10, 5000);
+        config.Transition.MinimumResistanceFactor = Math.Clamp(
+            config.Transition.MinimumResistanceFactor, 0.05, 1.0);
+
+        foreach (DisplayResistanceSettings display in config.Transition.DisplayResistance)
+        {
+            display.StableId ??= string.Empty;
+            display.Left ??= new EdgeResistanceSettings();
+            display.Top ??= new EdgeResistanceSettings();
+            display.Right ??= new EdgeResistanceSettings();
+            display.Bottom ??= new EdgeResistanceSettings();
+            foreach (EdgeResistanceSettings edge in new[] { display.Left, display.Top, display.Right, display.Bottom })
+            {
+                edge.ResistanceMm = Math.Clamp(edge.ResistanceMm, 0, 200);
+            }
+        }
         config.Drag.LiveThrottleMs = Math.Clamp(config.Drag.LiveThrottleMs, 0, 500);
 
         return config;

@@ -29,6 +29,10 @@ coverage/
 ## Inno Setup output
 build/installer/Output/
 
+## Agent / local verification
+.caya-agent/
+.caya-build-check/
+
 ## Misc
 *.log
 .DS_Store

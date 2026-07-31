@@ -1,4 +1,7 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
+using System.Security.Principal;
 using System.Windows;
 using System.Windows.Threading;
 using CaYaScreenBridge.Core.Config;
@@ -20,7 +23,7 @@ public partial class App : Application
     private ILogSink _log = NullLogSink.Instance;
     private ConfigStore? _store;
     private AppConfig _config = new();
-    private BridgeEngine? _engine;
+    private IBridgeEngine? _engine;
     private StartupManager? _startup;
     private TrayIcon? _tray;
     private MainWindow? _window;
@@ -30,10 +33,24 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        int workerIndex = Array.FindIndex(
+            e.Args,
+            a => a.Equals("--engine-worker", StringComparison.OrdinalIgnoreCase));
+        if (workerIndex >= 0 && workerIndex + 1 < e.Args.Length)
+        {
+            _ = RunEngineWorkerAsync(e.Args[workerIndex + 1]);
+            return;
+        }
+
         bool background = e.Args.Any(a =>
             a.Equals("--background", StringComparison.OrdinalIgnoreCase) ||
             a.Equals("--tray", StringComparison.OrdinalIgnoreCase) ||
             a.Equals("-b", StringComparison.OrdinalIgnoreCase));
+
+        if (TryRestartElevated(e.Args))
+        {
+            return;
+        }
 
         _instance = SingleInstance.Acquire();
 
@@ -60,7 +77,7 @@ public partial class App : Application
         _startup.RepairIfNeeded(_config.General.StartWithWindows, _config.General.StartElevated);
         _startup.ApplyHookTimeout(_config.General.RaiseHookTimeout);
 
-        _engine = new BridgeEngine(_log);
+        _engine = new EngineProcessProxy(_log);
         _engine.Start(_config);
 
         _viewModel = new MainViewModel(_engine, _store, _startup, _memoryLog!, _fileLog!);
@@ -73,13 +90,90 @@ public partial class App : Application
         _instance.ShowRequested += () => Dispatcher.BeginInvoke(ShowMainWindow);
         _instance.ListenForShowRequests();
 
-        if (!background && !_config.General.StartMinimised)
+        // Honour the user's start-minimised preference when a tray icon is available. If the tray
+        // icon is disabled, keep the main window visible so the application cannot become unreachable.
+        bool startHidden = background || (_config.General.StartMinimised && _config.General.ShowTrayIcon);
+        if (!startHidden)
         {
             ShowMainWindow();
         }
 
         _log.Info("App", $"Ready ({(background ? "background" : "foreground")} start).");
     }
+
+    private async Task RunEngineWorkerAsync(string pipeName)
+    {
+        try
+        {
+            await EngineWorkerHost.RunAsync(pipeName, NullLogSink.Instance, CancellationToken.None);
+        }
+        catch
+        {
+            // The UI process owns diagnostics. A disconnected pipe means it has exited or failed.
+        }
+        finally
+        {
+            Dispatcher.Invoke(() => Shutdown(0));
+        }
+    }
+
+    private bool TryRestartElevated(string[] args)
+    {
+        if (args.Any(a => a.Equals("--elevated-restart", StringComparison.OrdinalIgnoreCase)) || IsElevated())
+        {
+            return false;
+        }
+
+        AppConfig bootstrap = new ConfigStore(ConfigStore.DefaultDirectory, NullLogSink.Instance).Load();
+        if (!bootstrap.General.StartElevated && !bootstrap.Games.DeepWindowsIntegration)
+        {
+            return false;
+        }
+
+        string? executable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            return false;
+        }
+
+        string forwarded = string.Join(
+            " ",
+            args.Where(a => !a.Equals("--elevated-restart", StringComparison.OrdinalIgnoreCase))
+                .Select(QuoteArgument));
+        string arguments = string.IsNullOrWhiteSpace(forwarded)
+            ? "--elevated-restart"
+            : $"{forwarded} --elevated-restart";
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(executable)
+            {
+                Arguments = arguments,
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = AppContext.BaseDirectory,
+            });
+
+            Shutdown(0);
+            return true;
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // The user cancelled UAC. Continue with normal rights rather than failing to launch.
+            return false;
+        }
+    }
+
+    private static bool IsElevated()
+    {
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    private static string QuoteArgument(string argument) =>
+        argument.Length == 0 || argument.Any(char.IsWhiteSpace) || argument.Contains('"')
+            ? $"\"{argument.Replace("\"", "\\\"")}\""
+            : argument;
 
     private void SetUpLogging()
     {

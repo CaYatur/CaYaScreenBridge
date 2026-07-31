@@ -8,6 +8,49 @@ public enum WrapMode
     Both = 3,
 }
 
+/// <summary>A physical edge of one display.</summary>
+public enum DisplayEdge
+{
+    Left = 0,
+    Top = 1,
+    Right = 2,
+    Bottom = 3,
+}
+
+/// <summary>Optional resistance override for one display edge.</summary>
+public sealed class EdgeResistanceSettings
+{
+    /// <summary>When false, this edge inherits the global resistance value.</summary>
+    public bool UseCustomResistance { get; set; }
+
+    public double ResistanceMm { get; set; }
+
+    /// <summary>Null inherits the global speed-adaptive setting.</summary>
+    public bool? SpeedAdaptive { get; set; }
+}
+
+/// <summary>Per-edge resistance overrides for one stable display identifier.</summary>
+public sealed class DisplayResistanceSettings
+{
+    public string StableId { get; set; } = string.Empty;
+
+    public EdgeResistanceSettings Left { get; set; } = new();
+
+    public EdgeResistanceSettings Top { get; set; } = new();
+
+    public EdgeResistanceSettings Right { get; set; } = new();
+
+    public EdgeResistanceSettings Bottom { get; set; } = new();
+
+    public EdgeResistanceSettings For(DisplayEdge edge) => edge switch
+    {
+        DisplayEdge.Left => Left,
+        DisplayEdge.Top => Top,
+        DisplayEdge.Right => Right,
+        _ => Bottom,
+    };
+}
+
 /// <summary>How the window drag correction behaves when a window crosses a DPI boundary.</summary>
 public enum DragScalingMode
 {
@@ -36,7 +79,7 @@ public enum RuleAction
 
 public sealed class AppConfig
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 5;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -111,6 +154,18 @@ public sealed class TransitionSettings
     /// <summary>Resistance build up is discarded after this long without an outward push.</summary>
     public int ResistanceResetMs { get; set; } = 400;
 
+    /// <summary>Reduce resistance for fast, intentional movement while preserving slow-edge control.</summary>
+    public bool SpeedAdaptiveResistance { get; set; }
+
+    /// <summary>Speed at which adaptive resistance starts to decrease.</summary>
+    public double ResistanceSpeedReferenceMmPerSecond { get; set; } = 500;
+
+    /// <summary>Smallest fraction of the configured resistance used at very high speed.</summary>
+    public double MinimumResistanceFactor { get; set; } = 0.25;
+
+    /// <summary>Optional per-display, per-edge overrides.</summary>
+    public List<DisplayResistanceSettings> DisplayResistance { get; set; } = new();
+
     public WrapMode Wrap { get; set; } = WrapMode.None;
 
     /// <summary>
@@ -133,6 +188,12 @@ public sealed class DragSettings
 
     /// <summary>Keep the point the user grabbed under the cursor after the window is rescaled.</summary>
     public bool PreserveGrabPoint { get; set; } = true;
+
+    /// <summary>
+    /// Keep one stable source-screen appearance while a window straddles two displays, then settle
+    /// it once after the complete rectangle enters the destination. Independent from scaling mode.
+    /// </summary>
+    public bool SeamlessCrossDisplay { get; set; } = true;
 
     /// <summary>Minimum milliseconds between two live rescale operations on the same window.</summary>
     public int LiveThrottleMs { get; set; } = 40;
@@ -160,6 +221,13 @@ public sealed class GameSettings
     /// be read as automation by kernel anti-cheat; this protection is available but disabled by default.
     /// </summary>
     public bool PauseForAntiCheat { get; set; } = false;
+
+    /// <summary>
+    /// Enables the elevated, aggressive desktop/session recovery path for virtual desktops,
+    /// elevated applications and Windows desktop switches. Disabled by default because it requests
+    /// administrator elevation and performs more frequent hook recovery checks.
+    /// </summary>
+    public bool DeepWindowsIntegration { get; set; } = false;
 
     public List<string> AntiCheatProcesses { get; set; } = new()
     {

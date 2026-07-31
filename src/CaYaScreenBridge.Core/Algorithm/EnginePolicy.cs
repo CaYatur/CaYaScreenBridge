@@ -86,7 +86,14 @@ public static class EnginePolicy
     private static PolicyDecision Normal(AppConfig config, ForegroundState foreground)
     {
         bool correct = config.Transition.AlignCursor;
-        bool scale = config.Drag.Mode != DragScalingMode.Off;
+        bool scale = config.Drag.Mode != DragScalingMode.Off || config.Drag.SeamlessCrossDisplay;
+
+        if (foreground.Kind == ForegroundKind.ExclusiveFullScreen)
+        {
+            // Continue cursor correction when requested, but never move or resize an exclusive
+            // presentation surface.
+            return new PolicyDecision(correct, false, "exclusive-fullscreen");
+        }
 
         if (foreground.Kind == ForegroundKind.BorderlessFullScreen)
         {

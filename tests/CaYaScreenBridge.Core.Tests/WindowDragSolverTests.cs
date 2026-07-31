@@ -140,4 +140,98 @@ public class WindowDragSolverTests
         Assert.InRange(fraction.X, -0.25, 1.25);
         Assert.InRange(fraction.Y, -0.25, 1.25);
     }
+    [Fact]
+    public void StraddlingWindowKeepsSourcePixelSizeUntilFullyInsideTarget()
+    {
+        ZoneLayout layout = TestLayouts.HighDpiLeftOfLowDpi();
+        DisplayZone source = layout.FindByStableId("PANEL-4K")!;
+        DisplayZone targetZone = layout.FindByStableId("PANEL-FHD")!;
+        var start = new RectD(2600, 500, 1200, 800);
+        DragState drag = CreateDrag(start, source, new Vec2(3000, 520));
+
+        RectD transition = WindowDragSolver.SolveTransitionRect(
+            drag,
+            new Vec2(3900, 700),
+            preserveGrabPoint: true);
+
+        Assert.Equal(start.Width, transition.Width);
+        Assert.Equal(start.Height, transition.Height);
+        Assert.False(WindowDragSolver.IsFullyInside(transition, targetZone.PixelBounds));
+
+        double heldX = transition.Left + (drag.GrabFraction.X * transition.Width);
+        double heldY = transition.Top + (drag.GrabFraction.Y * transition.Height);
+        Assert.Equal(3900, heldX, 0);
+        Assert.Equal(700, heldY, 0);
+    }
+
+    [Fact]
+    public void FullyTransferredWindowUsesExactPhysicalTargetSize()
+    {
+        ZoneLayout layout = TestLayouts.HighDpiLeftOfLowDpi();
+        DisplayZone source = layout.FindByStableId("PANEL-4K")!;
+        DisplayZone targetZone = layout.FindByStableId("PANEL-FHD")!;
+        var start = new RectD(2600, 500, 1200, 600);
+        DragState drag = CreateDrag(start, source, new Vec2(3000, 520));
+        var cursor = new Vec2(4700, 900);
+
+        RectD transition = WindowDragSolver.SolveTransitionRect(drag, cursor, preserveGrabPoint: true);
+        Assert.True(WindowDragSolver.IsFullyInside(transition, targetZone.PixelBounds));
+
+        RectD settled = WindowDragSolver.SolveTargetRect(drag, targetZone, cursor, preserveGrabPoint: true);
+        Assert.Equal(drag.PhysicalSizeMm.X, settled.Width * targetZone.MmPerPixel.X, 0);
+        Assert.Equal(drag.PhysicalSizeMm.Y, settled.Height * targetZone.MmPerPixel.Y, 0);
+    }
+
+    [Fact]
+    public void ContinuousSolverBlendsAcrossThreeDifferentDisplays()
+    {
+        var a = new DisplayZone("A", "A", new RectD(0, 0, 2560, 1440), new RectD(0, 0, 600, 340), 120, true);
+        var b = new DisplayZone("B", "B", new RectD(2560, 200, 1920, 1080), new RectD(600, 60, 530, 300), 96, false);
+        var c = new DisplayZone("C", "C", new RectD(4480, -120, 3840, 2160), new RectD(1130, -35, 700, 390), 168, false);
+        var layout = new ZoneLayout(new[] { a, b, c });
+        var start = new RectD(1800, 400, 1200, 700);
+        DragState drag = CreateDrag(start, a, new Vec2(2100, 430));
+
+        RectD onA = WindowDragSolver.SolveContinuousRect(drag, new Vec2(2100, 430), layout, true);
+        drag.LastAppliedRect = onA;
+        RectD betweenAB = WindowDragSolver.SolveContinuousRect(drag, new Vec2(3000, 500), layout, true);
+        drag.LastAppliedRect = betweenAB;
+        RectD onB = WindowDragSolver.SolveContinuousRect(drag, new Vec2(3500, 500), layout, true);
+        drag.LastAppliedRect = onB;
+        RectD betweenBC = WindowDragSolver.SolveContinuousRect(drag, new Vec2(4700, 450), layout, true);
+
+        Assert.InRange(betweenAB.Width, Math.Min(onA.Width, onB.Width), Math.Max(onA.Width, onB.Width));
+        Assert.True(betweenBC.Width > 0);
+
+        foreach ((RectD rect, Vec2 cursor) in new[]
+                 {
+                     (onA, new Vec2(2100, 430)),
+                     (betweenAB, new Vec2(3000, 500)),
+                     (onB, new Vec2(3500, 500)),
+                     (betweenBC, new Vec2(4700, 450)),
+                 })
+        {
+            double heldX = rect.Left + (drag.GrabFraction.X * rect.Width);
+            double heldY = rect.Top + (drag.GrabFraction.Y * rect.Height);
+            Assert.Equal(cursor.X, heldX, 0);
+            Assert.Equal(cursor.Y, heldY, 0);
+        }
+    }
+
+    [Fact]
+    public void ContinuousSolverReachesExactPhysicalSizeWhenFullyOnOneDisplay()
+    {
+        ZoneLayout layout = TestLayouts.HighDpiLeftOfLowDpi();
+        DisplayZone source = layout.FindByStableId("PANEL-4K")!;
+        DisplayZone target = layout.FindByStableId("PANEL-FHD")!;
+        var start = new RectD(1000, 400, 1200, 800);
+        DragState drag = CreateDrag(start, source, new Vec2(1300, 420));
+
+        RectD solved = WindowDragSolver.SolveContinuousRect(drag, new Vec2(5000, 700), layout, true);
+
+        Assert.True(WindowDragSolver.IsFullyInside(solved, target.PixelBounds));
+        Assert.Equal(drag.PhysicalSizeMm.X, solved.Width * target.MmPerPixel.X, 0);
+        Assert.Equal(drag.PhysicalSizeMm.Y, solved.Height * target.MmPerPixel.Y, 0);
+    }
+
 }

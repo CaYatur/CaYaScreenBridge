@@ -248,6 +248,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Margin="0,0,0,14">
                                 <CheckBox x:Name="SnapToggle" IsChecked="True" Content="{ui:S Key=displays.snap}" Checked="OnSnapChanged" Unchecked="OnSnapChanged" />
                                 <Button Content="{ui:S Key=displays.autoLayout}" Command="{Binding AutoLayoutCommand}" Margin="0,8,0,0" />
+                                <Button Content="{ui:S Key=calibration.open}" Command="{Binding OpenCalibrationCommand}" Margin="0,8,0,0" />
                             </StackPanel>
                         </Grid>
                     </Grid>
@@ -290,6 +291,72 @@
                                                    FontFamily="{StaticResource Font.Mono}" Foreground="{StaticResource Brush.Text}"
                                                    Text="{Binding BorderResistanceMm, StringFormat='{}{0:0.0} mm'}" />
                                     </Grid>
+
+                                    <CheckBox IsChecked="{Binding SpeedAdaptiveResistance, Mode=TwoWay}"
+                                              Content="{ui:S Key=transition.speedAdaptive}" Margin="0,14,0,0" />
+                                    <TextBlock Text="{ui:S Key=transition.speedAdaptiveHint}" Style="{StaticResource Text.Hint}" Margin="42,0,0,8" />
+                                    <Grid IsEnabled="{Binding SpeedAdaptiveResistance}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{ui:S Key=transition.speedReference}" Style="{StaticResource Text.Hint}" />
+                                            <Slider Minimum="50" Maximum="2000" TickFrequency="50" IsSnapToTickEnabled="True"
+                                                    Value="{Binding ResistanceSpeedReferenceMmPerSecond, Mode=TwoWay}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Margin="14,18,0,0" VerticalAlignment="Center"
+                                                   FontFamily="{StaticResource Font.Mono}" Foreground="{StaticResource Brush.Text}"
+                                                   Text="{Binding ResistanceSpeedReferenceMmPerSecond, StringFormat='{}{0:0} mm/s'}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" IsEnabled="{Binding HasSelectedDisplay}">
+                                <StackPanel>
+                                    <TextBlock Text="{ui:S Key=transition.advancedResistance}" Style="{StaticResource Text.CardTitle}" />
+                                    <TextBlock Text="{ui:S Key=transition.advancedResistanceHint}" Style="{StaticResource Text.Hint}" Margin="0,0,0,10" />
+                                    <ComboBox ItemsSource="{Binding Displays}" SelectedItem="{Binding SelectedDisplay, Mode=TwoWay}"
+                                              DisplayMemberPath="Label" Width="320" HorizontalAlignment="Left" Margin="0,0,0,12" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="180" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{ui:S Key=transition.edge}" Style="{StaticResource Text.Hint}" />
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{ui:S Key=transition.custom}" Style="{StaticResource Text.Hint}" />
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{ui:S Key=transition.resistance}" Style="{StaticResource Text.Hint}" />
+                                        <TextBlock Grid.Row="0" Grid.Column="3" Text="{ui:S Key=transition.speedMode}" Style="{StaticResource Text.Hint}" />
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{ui:S Key=transition.edge.left}" VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="1" Grid.Column="1" IsChecked="{Binding LeftUseCustomResistance, Mode=TwoWay}" />
+                                        <TextBox Grid.Row="1" Grid.Column="2" Margin="0,3,10,3" IsEnabled="{Binding LeftUseCustomResistance}" Text="{Binding LeftResistanceMm, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat=0.0}" />
+                                        <ComboBox Grid.Row="1" Grid.Column="3" Margin="0,3" SelectedIndex="{Binding LeftSpeedAdaptiveIndex, Mode=TwoWay}"><ComboBoxItem Content="{ui:S Key=transition.inherit}"/><ComboBoxItem Content="{ui:S Key=common.on}"/><ComboBoxItem Content="{ui:S Key=common.off}"/></ComboBox>
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{ui:S Key=transition.edge.top}" VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding TopUseCustomResistance, Mode=TwoWay}" />
+                                        <TextBox Grid.Row="2" Grid.Column="2" Margin="0,3,10,3" IsEnabled="{Binding TopUseCustomResistance}" Text="{Binding TopResistanceMm, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat=0.0}" />
+                                        <ComboBox Grid.Row="2" Grid.Column="3" Margin="0,3" SelectedIndex="{Binding TopSpeedAdaptiveIndex, Mode=TwoWay}"><ComboBoxItem Content="{ui:S Key=transition.inherit}"/><ComboBoxItem Content="{ui:S Key=common.on}"/><ComboBoxItem Content="{ui:S Key=common.off}"/></ComboBox>
+
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="{ui:S Key=transition.edge.right}" VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding RightUseCustomResistance, Mode=TwoWay}" />
+                                        <TextBox Grid.Row="3" Grid.Column="2" Margin="0,3,10,3" IsEnabled="{Binding RightUseCustomResistance}" Text="{Binding RightResistanceMm, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat=0.0}" />
+                                        <ComboBox Grid.Row="3" Grid.Column="3" Margin="0,3" SelectedIndex="{Binding RightSpeedAdaptiveIndex, Mode=TwoWay}"><ComboBoxItem Content="{ui:S Key=transition.inherit}"/><ComboBoxItem Content="{ui:S Key=common.on}"/><ComboBoxItem Content="{ui:S Key=common.off}"/></ComboBox>
+
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="{ui:S Key=transition.edge.bottom}" VerticalAlignment="Center" />
+                                        <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding BottomUseCustomResistance, Mode=TwoWay}" />
+                                        <TextBox Grid.Row="4" Grid.Column="2" Margin="0,3,10,3" IsEnabled="{Binding BottomUseCustomResistance}" Text="{Binding BottomResistanceMm, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat=0.0}" />
+                                        <ComboBox Grid.Row="4" Grid.Column="3" Margin="0,3" SelectedIndex="{Binding BottomSpeedAdaptiveIndex, Mode=TwoWay}"><ComboBoxItem Content="{ui:S Key=transition.inherit}"/><ComboBoxItem Content="{ui:S Key=common.on}"/><ComboBoxItem Content="{ui:S Key=common.off}"/></ComboBox>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 
@@ -329,6 +396,23 @@
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
                                     <CheckBox IsChecked="{Binding PreserveGrabPoint, Mode=TwoWay}" Content="{ui:S Key=drag.grab}" />
+                                    <CheckBox IsChecked="{Binding SeamlessCrossDisplay, Mode=TwoWay}" Content="{ui:S Key=drag.seamless}" Margin="0,8,0,0" />
+                                    <TextBlock Text="{ui:S Key=drag.seamlessHint}" Style="{StaticResource Text.Hint}" Margin="42,0,0,8" TextWrapping="Wrap" />
+                                    <Border Margin="42,0,0,12" Padding="10,8" BorderThickness="1" CornerRadius="6"
+                                            BorderBrush="{StaticResource Brush.Warning}">
+                                        <Border.Background>
+                                            <SolidColorBrush Color="{StaticResource Color.Warning}" Opacity="0.12" />
+                                        </Border.Background>
+                                        <StackPanel>
+                                            <TextBlock Text="{ui:S Key=drag.seamlessWarningTitle}"
+                                                       Foreground="{StaticResource Brush.Warning}"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{ui:S Key=drag.seamlessWarning}"
+                                                       Foreground="{StaticResource Brush.Text}"
+                                                       Margin="0,3,0,0"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
 
                                     <CheckBox IsChecked="{Binding SkipDpiUnawareWindows, Mode=TwoWay}" Content="{ui:S Key=drag.skipUnaware}" />
                                     <TextBlock Text="{ui:S Key=drag.skipUnawareHint}" Style="{StaticResource Text.Hint}" Margin="42,0,0,10" />
@@ -378,7 +462,10 @@
                                 <CheckBox IsChecked="{Binding CorrectInBorderlessFullScreen, Mode=TwoWay}" Content="{ui:S Key=rules.borderless}" />
 
                                 <CheckBox IsChecked="{Binding PauseForAntiCheat, Mode=TwoWay}" Content="{ui:S Key=rules.anticheat}" />
-                                <TextBlock Text="{ui:S Key=rules.anticheatHint}" Style="{StaticResource Text.Hint}" Margin="42,0,0,0" />
+                                <TextBlock Text="{ui:S Key=rules.anticheatHint}" Style="{StaticResource Text.Hint}" Margin="42,0,0,10" />
+
+                                <CheckBox IsChecked="{Binding DeepWindowsIntegration, Mode=TwoWay}" Content="{ui:S Key=rules.deepIntegration}" />
+                                <TextBlock Text="{ui:S Key=rules.deepIntegrationHint}" Style="{StaticResource Text.Hint}" Margin="42,0,0,0" />
                             </StackPanel>
                         </Border>
 
@@ -463,6 +550,17 @@
                                         <ComboBoxItem Content="English" />
                                     </ComboBox>
                                     <TextBlock Text="{ui:S Key=startup.languageHint}" Style="{StaticResource Text.Hint}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="{ui:S Key=settings.title}" Style="{StaticResource Text.CardTitle}" />
+                                    <TextBlock Text="{ui:S Key=settings.hint}" Style="{StaticResource Text.Hint}" Margin="0,0,0,12" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="{ui:S Key=settings.export}" Command="{Binding ExportSettingsCommand}" Margin="0,0,8,0" />
+                                        <Button Content="{ui:S Key=settings.import}" Command="{Binding ImportSettingsCommand}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

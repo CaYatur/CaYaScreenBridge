@@ -46,6 +46,14 @@ public sealed class CursorRouter
 
     private double _resistance;
     private long _resistanceStampMs;
+    private long _lastSampleStampMs;
+
+    private DisplayZone? _lastCrossingFrom;
+    private DisplayZone? _lastCrossingTo;
+    private long _lastCrossingStampMs;
+
+    private const int ReverseCrossingLockMs = 120;
+    private const double ReverseCrossingReleaseMm = 2.0;
 
     // Set when we move the cursor ourselves; the resulting event comes straight back through the
     // hook and must not be mistaken for user movement.
@@ -83,6 +91,10 @@ public sealed class CursorRouter
         _zone = null;
         _resistance = 0;
         _selfMovePending = false;
+        _lastCrossingFrom = null;
+        _lastCrossingTo = null;
+        _lastCrossingStampMs = 0;
+        _lastSampleStampMs = 0;
         _calibrator.Reset();
     }
 
@@ -116,12 +128,13 @@ public sealed class CursorRouter
         // Another application (or a tablet, or a remote desktop client) placed the cursor. Adopt the
         // new position rather than fighting it; correcting a teleport would produce visible fights
         // between the two pieces of software.
-        if (sample.Injected ||
-            Math.Abs(pixelDelta.X) > _options.TeleportThresholdPx ||
-            Math.Abs(pixelDelta.Y) > _options.TeleportThresholdPx)
+        if (sample.Injected)
         {
             return Resync(position);
         }
+
+        // Large physical movement must still go through the strict edge solver. Treating it as a
+        // teleport allowed a very fast sample to appear directly inside a blocked display.
 
         // A normal crossing arrives here with the reported position already inside the neighbouring
         // display, because that is exactly how Windows moves the cursor over a shared edge. So the
@@ -154,10 +167,27 @@ public sealed class CursorRouter
         }
 
         DisplayZone target = Solve(source, fromMm, toMm, out Vec2 landingMm);
+        long elapsedMs = _lastSampleStampMs <= 0 ? 0 : Math.Max(1, sample.TimestampMs - _lastSampleStampMs);
+        _lastSampleStampMs = sample.TimestampMs;
+        double speedMmPerSecond = elapsedMs <= 0
+            ? 0
+            : Vec2.Distance(fromMm, toMm) * 1000.0 / elapsedMs;
+        DisplayEdge exitEdge = FindExitEdge(source.PhysicalBounds, toMm);
+        double resistanceThresholdMm = _options.ResolveResistanceMm(
+            source.StableId,
+            exitEdge,
+            speedMmPerSecond);
 
         if (!ReferenceEquals(target, source) &&
-            _options.BorderResistanceMm > 0 &&
-            !ResistanceSatisfied(source, landingMm, sample.TimestampMs))
+            IsReverseCrossingLocked(source, target, fromMm, sample.TimestampMs))
+        {
+            landingMm = source.PhysicalBounds.ClampInside(fromMm, MmMarginFor(source));
+            target = source;
+        }
+
+        if (!ReferenceEquals(target, source) &&
+            resistanceThresholdMm > 0 &&
+            !ResistanceSatisfied(source, landingMm, sample.TimestampMs, resistanceThresholdMm))
         {
             landingMm = source.PhysicalBounds.ClampInside(landingMm, MmMarginFor(source));
             target = source;
@@ -179,6 +209,9 @@ public sealed class CursorRouter
 
         if (crossed)
         {
+            _lastCrossingFrom = source;
+            _lastCrossingTo = target;
+            _lastCrossingStampMs = sample.TimestampMs;
             CrossingCount++;
 
             // Pointer sensitivity is per display; the learned raw-to-pixel gain no longer applies.
@@ -307,6 +340,23 @@ public sealed class CursorRouter
     /// Picks a display for a movement that ended in dead space. Distance decides, but displays that
     /// sit behind the direction of travel are penalised so the cursor does not snap backwards.
     /// </summary>
+    private bool IsReverseCrossingLocked(DisplayZone source, DisplayZone target, Vec2 fromMm, long timestampMs)
+    {
+        if (_lastCrossingFrom is null || _lastCrossingTo is null ||
+            !ReferenceEquals(source, _lastCrossingTo) ||
+            !ReferenceEquals(target, _lastCrossingFrom) ||
+            timestampMs - _lastCrossingStampMs > ReverseCrossingLockMs)
+        {
+            return false;
+        }
+
+        RectD bounds = source.PhysicalBounds;
+        double depth = Math.Min(
+            Math.Min(fromMm.X - bounds.Left, bounds.Right - fromMm.X),
+            Math.Min(fromMm.Y - bounds.Top, bounds.Bottom - fromMm.Y));
+        return depth < ReverseCrossingReleaseMm;
+    }
+
     private static bool IsContinuousCrossing(DisplayZone source, DisplayZone target, Vec2 fromMm, Vec2 delta)
     {
         if (!RayCast.SegmentIntersectsRect(fromMm, delta, source.PhysicalBounds, out _, out double sourceExit) ||
@@ -389,12 +439,26 @@ public sealed class CursorRouter
         return new Vec2(x, y);
     }
 
+    private static DisplayEdge FindExitEdge(RectD bounds, Vec2 point)
+    {
+        double left = Math.Max(0, bounds.Left - point.X);
+        double top = Math.Max(0, bounds.Top - point.Y);
+        double right = Math.Max(0, point.X - bounds.Right);
+        double bottom = Math.Max(0, point.Y - bounds.Bottom);
+
+        double maximum = Math.Max(Math.Max(left, right), Math.Max(top, bottom));
+        if (maximum == left) return DisplayEdge.Left;
+        if (maximum == right) return DisplayEdge.Right;
+        if (maximum == top) return DisplayEdge.Top;
+        return DisplayEdge.Bottom;
+    }
+
     /// <summary>
     /// Accumulates how far the pointer has been pushed past a border and reports whether the
     /// configured threshold has been reached. The accumulator decays after a pause so that brushing
     /// the edge repeatedly over a minute does not eventually trigger a crossing on its own.
     /// </summary>
-    private bool ResistanceSatisfied(DisplayZone source, Vec2 toMm, long timestampMs)
+    private bool ResistanceSatisfied(DisplayZone source, Vec2 toMm, long timestampMs, double thresholdMm)
     {
         if (timestampMs - _resistanceStampMs > _options.ResistanceResetMs)
         {
@@ -415,7 +479,7 @@ public sealed class CursorRouter
 
         _resistance += outward;
 
-        if (_resistance >= _options.BorderResistanceMm)
+        if (_resistance >= thresholdMm)
         {
             _resistance = 0;
             return true;

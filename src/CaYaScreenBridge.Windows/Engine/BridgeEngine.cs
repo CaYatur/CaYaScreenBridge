@@ -37,7 +37,7 @@ public sealed record EngineStatus(
 /// timeout eviction) has an explicit recovery path rather than relying on the process being
 /// restarted.
 /// </summary>
-public sealed class BridgeEngine : IHookListener, IDisposable
+public sealed class BridgeEngine : IHookListener, IBridgeEngine
 {
     private static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan DisplayDebounce = TimeSpan.FromMilliseconds(700);
@@ -56,6 +56,7 @@ public sealed class BridgeEngine : IHookListener, IDisposable
 
     private readonly Timer _watchdog;
     private readonly Timer _displayDebounce;
+    private readonly Timer _cursorClipRelease;
 
     private AppConfig _config = new();
     private volatile PolicyDecision _policy = PolicyDecision.Full;
@@ -70,6 +71,8 @@ public sealed class BridgeEngine : IHookListener, IDisposable
     private long _hookRestarts;
     private bool _started;
     private bool _disposed;
+    private volatile bool _secureDesktopPaused;
+    private int _cursorClipActive;
 
     public BridgeEngine(ILogSink log)
     {
@@ -82,6 +85,7 @@ public sealed class BridgeEngine : IHookListener, IDisposable
 
         _watchdog = new Timer(_ => RunWatchdog(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _displayDebounce = new Timer(_ => RebuildLayout("display change"), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _cursorClipRelease = new Timer(_ => ReleaseCursorClip(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
         _foreground.StateChanged += OnForegroundChanged;
     }
@@ -95,6 +99,10 @@ public sealed class BridgeEngine : IHookListener, IDisposable
     public IReadOnlyList<DisplaySnapshot> Displays => _displays;
 
     public CursorRouter Router => _router;
+
+    public Vec2 PhysicalPosition => _router.PhysicalPosition;
+
+    public string? CurrentZoneName => _router.CurrentZone?.DisplayName;
 
     public AppConfig Config
     {
@@ -113,9 +121,9 @@ public sealed class BridgeEngine : IHookListener, IDisposable
         _hook.RawInputAvailable,
         _layout.Count,
         _activeProfileId,
-        _policy.Reason,
-        _policy.CorrectCursor,
-        _policy.ScaleWindows,
+        _secureDesktopPaused ? "secure-desktop" : _policy.Reason,
+        !_secureDesktopPaused && _policy.CorrectCursor,
+        !_secureDesktopPaused && _policy.ScaleWindows,
         _router.CrossingCount,
         _router.RecoveryCount,
         Interlocked.Read(ref _hookRestarts));
@@ -164,6 +172,7 @@ public sealed class BridgeEngine : IHookListener, IDisposable
         _hook.Stop();
         _pointerSpeed.Restore();
         _dragTracker.Reset();
+        ReleaseCursorClip();
 
         _log.Info("Engine", "Stopped.");
         RaiseStatus();
@@ -258,8 +267,9 @@ public sealed class BridgeEngine : IHookListener, IDisposable
     bool IHookListener.OnMouseMove(in MouseHookEvent e)
     {
         PolicyDecision policy = _policy;
-        if (!policy.CorrectCursor)
+        if (_secureDesktopPaused || !policy.CorrectCursor)
         {
+            ReleaseCursorClip();
             return false;
         }
 
@@ -279,6 +289,15 @@ public sealed class BridgeEngine : IHookListener, IDisposable
 
         RouterDecision decision = _router.Process(in sample);
 
+        if (decision.Outcome == RouterOutcome.Held && decision.FromZone is not null)
+        {
+            ApplyCursorClip(decision.FromZone);
+        }
+        else
+        {
+            ReleaseCursorClip();
+        }
+
         if (decision.Handled)
         {
             Win32.SetCursorPos((int)decision.TargetPixel.X, (int)decision.TargetPixel.Y);
@@ -294,6 +313,35 @@ public sealed class BridgeEngine : IHookListener, IDisposable
         _dragTracker.OnCursorMoved(effective, zone, _layout, policy.ScaleWindows);
 
         return decision.Handled;
+    }
+
+    private void ApplyCursorClip(DisplayZone zone)
+    {
+        RectD bounds = zone.PixelBounds;
+        var rect = new RECT
+        {
+            Left = (int)Math.Floor(bounds.Left),
+            Top = (int)Math.Floor(bounds.Top),
+            Right = (int)Math.Ceiling(bounds.Right),
+            Bottom = (int)Math.Ceiling(bounds.Bottom),
+        };
+
+        if (Win32.ClipCursor(ref rect))
+        {
+            Interlocked.Exchange(ref _cursorClipActive, 1);
+            // A safety timeout prevents a stale clip if a hook event is lost or Windows changes
+            // topology while the cursor is held at an invalid edge segment.
+            _cursorClipRelease.Change(TimeSpan.FromMilliseconds(70), Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private void ReleaseCursorClip()
+    {
+        _cursorClipRelease.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        if (Interlocked.Exchange(ref _cursorClipActive, 0) != 0)
+        {
+            _ = Win32.ClipCursor(0);
+        }
     }
 
     void IHookListener.OnMouseButton(in MouseHookEvent e)
@@ -370,6 +418,38 @@ public sealed class BridgeEngine : IHookListener, IDisposable
 
         try
         {
+            bool deepWindowsIntegration;
+            lock (_configLock)
+            {
+                deepWindowsIntegration = _config.Games.DeepWindowsIntegration;
+            }
+
+            bool inputDesktopAccessible = Win32.CanAccessInputDesktop();
+            if (!inputDesktopAccessible)
+            {
+                if (!_secureDesktopPaused)
+                {
+                    _secureDesktopPaused = true;
+                    _router.Invalidate();
+                    _dragTracker.Reset();
+                    _log.Info("Engine", "Secure desktop entered; correction is paused.");
+                    RaiseStatus();
+                }
+
+                return;
+            }
+
+            if (_secureDesktopPaused && inputDesktopAccessible)
+            {
+                _secureDesktopPaused = false;
+                _router.Invalidate();
+                _dragTracker.Reset();
+                _log.Info("Engine", "Normal desktop restored; correction is resuming.");
+                RestartHook();
+                _displayDebounce.Change(DisplayDebounce, Timeout.InfiniteTimeSpan);
+                return;
+            }
+
             if (!_hook.IsRunning)
             {
                 _log.Warn("Watchdog", "The hook is not installed; restarting the hook thread.");
@@ -391,7 +471,8 @@ public sealed class BridgeEngine : IHookListener, IDisposable
             }
 
             long silence = Environment.TickCount64 - _hook.LastMouseEventTicks;
-            if (silence > HookSilenceThresholdMs)
+            long silenceThreshold = deepWindowsIntegration ? 1000 : HookSilenceThresholdMs;
+            if (silence > silenceThreshold)
             {
                 _log.Warn(
                     "Watchdog",
@@ -523,6 +604,7 @@ public sealed class BridgeEngine : IHookListener, IDisposable
         _foreground.StateChanged -= OnForegroundChanged;
         _watchdog.Dispose();
         _displayDebounce.Dispose();
+        _cursorClipRelease.Dispose();
         _foreground.Dispose();
         _dragTracker.Dispose();
         _hook.Dispose();

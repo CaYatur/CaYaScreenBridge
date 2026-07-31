@@ -372,4 +372,118 @@ public class CursorRouterTests
             Assert.False(blocked.Handled);
         }
     }
+    [Fact]
+    public void ExtremelyFastPhysicalMovementCannotBypassABlockedEdge()
+    {
+        var left = new DisplayZone(
+            "LEFT",
+            "Left",
+            new RectD(0, 0, 1920, 1080),
+            new RectD(0, 0, 531, 299),
+            96,
+            isPrimary: true);
+        var right = new DisplayZone(
+            "RIGHT",
+            "Right",
+            new RectD(1920, 0, 1920, 1080),
+            new RectD(531, 500, 531, 299),
+            96,
+            isPrimary: false);
+        var options = new RouterOptions
+        {
+            AlignCursor = true,
+            TeleportThresholdPx = 100,
+            PreventCursorLoss = true,
+        };
+        CursorRouter router = CreateRouter(new ZoneLayout(new[] { left, right }), options);
+
+        Move(router, 1900, 900);
+        RouterDecision decision = Move(router, 3000, 900, 8);
+
+        Assert.True(decision.Handled);
+        Assert.Equal("LEFT", decision.ToZone!.StableId);
+        Assert.Equal("LEFT", router.CurrentZone!.StableId);
+    }
+
+    [Fact]
+    public void SharedCornerDoesNotBounceBackOnTheNextSample()
+    {
+        CursorRouter router = CreateRouter(TestLayouts.IdenticalPair());
+
+        Move(router, 1919, 1, 0);
+        Move(router, 1921, 1, 10);
+        RouterDecision reverse = Move(router, 1919, 1, 20);
+
+        Assert.Equal("B", router.CurrentZone!.StableId);
+        Assert.NotEqual("A", reverse.ToZone?.StableId);
+    }
+
+    [Fact]
+    public void ResistanceUsesGlobalValueWhenNoEdgeOverrideExists()
+    {
+        var settings = new TransitionSettings { BorderResistanceMm = 12 };
+        RouterOptions options = RouterOptions.FromSettings(settings);
+
+        Assert.Equal(12, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Left, 100), 6);
+        Assert.Equal(12, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Right, 100), 6);
+    }
+
+    [Fact]
+    public void ResistanceCanBeOverriddenForOneDisplayEdge()
+    {
+        var display = new DisplayResistanceSettings { StableId = "DISPLAY-A" };
+        display.Right.UseCustomResistance = true;
+        display.Right.ResistanceMm = 30;
+
+        var settings = new TransitionSettings
+        {
+            BorderResistanceMm = 8,
+            DisplayResistance = new List<DisplayResistanceSettings> { display },
+        };
+
+        RouterOptions options = RouterOptions.FromSettings(settings);
+
+        Assert.Equal(30, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Right, 100), 6);
+        Assert.Equal(8, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Left, 100), 6);
+        Assert.Equal(8, options.ResolveResistanceMm("DISPLAY-B", DisplayEdge.Right, 100), 6);
+    }
+
+    [Fact]
+    public void SpeedAdaptiveResistanceDecreasesForFastMovement()
+    {
+        var settings = new TransitionSettings
+        {
+            BorderResistanceMm = 20,
+            SpeedAdaptiveResistance = true,
+            ResistanceSpeedReferenceMmPerSecond = 500,
+            MinimumResistanceFactor = 0.25,
+        };
+
+        RouterOptions options = RouterOptions.FromSettings(settings);
+
+        Assert.Equal(20, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Right, 250), 6);
+        Assert.Equal(10, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Right, 1000), 6);
+        Assert.Equal(5, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Right, 5000), 6);
+    }
+
+    [Fact]
+    public void EdgeCanDisableGlobalSpeedAdaptiveResistance()
+    {
+        var display = new DisplayResistanceSettings { StableId = "DISPLAY-A" };
+        display.Right.SpeedAdaptive = false;
+
+        var settings = new TransitionSettings
+        {
+            BorderResistanceMm = 20,
+            SpeedAdaptiveResistance = true,
+            ResistanceSpeedReferenceMmPerSecond = 500,
+            DisplayResistance = new List<DisplayResistanceSettings> { display },
+        };
+
+        RouterOptions options = RouterOptions.FromSettings(settings);
+
+        Assert.Equal(20, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Right, 2000), 6);
+        Assert.Equal(5, options.ResolveResistanceMm("DISPLAY-A", DisplayEdge.Left, 2000), 6);
+    }
+
 }

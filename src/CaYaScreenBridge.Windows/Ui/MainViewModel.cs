@@ -10,6 +10,7 @@ using CaYaScreenBridge.Core.Model;
 using CaYaScreenBridge.Windows.Engine;
 using CaYaScreenBridge.Windows.Services;
 using CaYaScreenBridge.Windows.Ui.Controls;
+using Microsoft.Win32;
 
 namespace CaYaScreenBridge.Windows.Ui;
 
@@ -22,11 +23,12 @@ public sealed class MainViewModel : ObservableObject
 {
     private static readonly TimeSpan SaveDebounce = TimeSpan.FromMilliseconds(600);
 
-    private readonly BridgeEngine _engine;
+    private readonly IBridgeEngine _engine;
     private readonly ConfigStore _store;
     private readonly StartupManager _startup;
     private readonly RingLog _log;
     private readonly FileLogSink _fileLog;
+    private readonly DesktopWallpaperService _wallpapers;
     private readonly DispatcherTimer _saveTimer;
     private readonly DispatcherTimer _liveTimer;
 
@@ -38,7 +40,7 @@ public sealed class MainViewModel : ObservableObject
     private string _startupSummary = string.Empty;
 
     public MainViewModel(
-        BridgeEngine engine,
+        IBridgeEngine engine,
         ConfigStore store,
         StartupManager startup,
         RingLog log,
@@ -49,6 +51,7 @@ public sealed class MainViewModel : ObservableObject
         _startup = startup;
         _log = log;
         _fileLog = fileLog;
+        _wallpapers = new DesktopWallpaperService(log);
 
         _saveTimer = new DispatcherTimer { Interval = SaveDebounce };
         _saveTimer.Tick += (_, _) =>
@@ -69,6 +72,9 @@ public sealed class MainViewModel : ObservableObject
         OpenLogFolderCommand = new RelayCommand(OpenLogFolder);
         RearmHookCommand = new RelayCommand(() => _engine.RebuildLayout("re-arm"));
         RepairStartupCommand = new RelayCommand(RepairStartup);
+        ExportSettingsCommand = new RelayCommand(ExportSettings);
+        ImportSettingsCommand = new RelayCommand(ImportSettings);
+        OpenCalibrationCommand = new RelayCommand(OpenCalibration, () => Displays.Count > 1);
 
         _engine.StatusChanged += OnEngineStatus;
         _engine.LayoutChanged += OnEngineLayout;
@@ -104,6 +110,12 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand RearmHookCommand { get; }
 
     public RelayCommand RepairStartupCommand { get; }
+
+    public RelayCommand ExportSettingsCommand { get; }
+
+    public RelayCommand ImportSettingsCommand { get; }
+
+    public RelayCommand OpenCalibrationCommand { get; }
 
     // -------------------------------------------------------------------------------------------
     // Status
@@ -197,6 +209,18 @@ public sealed class MainViewModel : ObservableObject
         set => Update(() => Config.Transition.BorderResistanceMm = Math.Round(value, 1));
     }
 
+    public bool SpeedAdaptiveResistance
+    {
+        get => Config.Transition.SpeedAdaptiveResistance;
+        set => Update(() => Config.Transition.SpeedAdaptiveResistance = value);
+    }
+
+    public double ResistanceSpeedReferenceMmPerSecond
+    {
+        get => Config.Transition.ResistanceSpeedReferenceMmPerSecond;
+        set => Update(() => Config.Transition.ResistanceSpeedReferenceMmPerSecond = Math.Clamp(Math.Round(value), 10, 5000));
+    }
+
     public int WrapIndex
     {
         get => (int)Config.Transition.Wrap;
@@ -217,6 +241,12 @@ public sealed class MainViewModel : ObservableObject
     {
         get => Config.Drag.PreserveGrabPoint;
         set => Update(() => Config.Drag.PreserveGrabPoint = value);
+    }
+
+    public bool SeamlessCrossDisplay
+    {
+        get => Config.Drag.SeamlessCrossDisplay;
+        set => Update(() => Config.Drag.SeamlessCrossDisplay = value);
     }
 
     public bool SkipDpiUnawareWindows
@@ -251,6 +281,22 @@ public sealed class MainViewModel : ObservableObject
     {
         get => Config.Games.CorrectInBorderlessFullScreen;
         set => Update(() => Config.Games.CorrectInBorderlessFullScreen = value);
+    }
+
+    public bool DeepWindowsIntegration
+    {
+        get => Config.Games.DeepWindowsIntegration;
+        set => Update(
+            () => Config.Games.DeepWindowsIntegration = value,
+            afterApply: () =>
+            {
+                if (value && !Config.General.StartElevated)
+                {
+                    Config.General.StartElevated = true;
+                    Raise(nameof(StartElevated));
+                    ApplyStartup();
+                }
+            });
     }
 
     public bool PauseForAntiCheat
@@ -329,13 +375,146 @@ public sealed class MainViewModel : ObservableObject
             if (Set(ref _selectedDisplay, value))
             {
                 Raise(nameof(HasSelectedDisplay));
+                RaiseSelectedResistanceProperties();
             }
         }
+    }
+
+    public bool LeftUseCustomResistance
+    {
+        get => GetEdgeResistance(DisplayEdge.Left)?.UseCustomResistance ?? false;
+        set => SetEdgeCustom(DisplayEdge.Left, value, nameof(LeftUseCustomResistance));
+    }
+
+    public double LeftResistanceMm
+    {
+        get => GetEdgeResistance(DisplayEdge.Left)?.ResistanceMm ?? BorderResistanceMm;
+        set => SetEdgeResistance(DisplayEdge.Left, value, nameof(LeftResistanceMm));
+    }
+
+    public int LeftSpeedAdaptiveIndex
+    {
+        get => ToSpeedMode(GetEdgeResistance(DisplayEdge.Left)?.SpeedAdaptive);
+        set => SetEdgeSpeedMode(DisplayEdge.Left, value, nameof(LeftSpeedAdaptiveIndex));
+    }
+
+    public bool TopUseCustomResistance
+    {
+        get => GetEdgeResistance(DisplayEdge.Top)?.UseCustomResistance ?? false;
+        set => SetEdgeCustom(DisplayEdge.Top, value, nameof(TopUseCustomResistance));
+    }
+
+    public double TopResistanceMm
+    {
+        get => GetEdgeResistance(DisplayEdge.Top)?.ResistanceMm ?? BorderResistanceMm;
+        set => SetEdgeResistance(DisplayEdge.Top, value, nameof(TopResistanceMm));
+    }
+
+    public int TopSpeedAdaptiveIndex
+    {
+        get => ToSpeedMode(GetEdgeResistance(DisplayEdge.Top)?.SpeedAdaptive);
+        set => SetEdgeSpeedMode(DisplayEdge.Top, value, nameof(TopSpeedAdaptiveIndex));
+    }
+
+    public bool RightUseCustomResistance
+    {
+        get => GetEdgeResistance(DisplayEdge.Right)?.UseCustomResistance ?? false;
+        set => SetEdgeCustom(DisplayEdge.Right, value, nameof(RightUseCustomResistance));
+    }
+
+    public double RightResistanceMm
+    {
+        get => GetEdgeResistance(DisplayEdge.Right)?.ResistanceMm ?? BorderResistanceMm;
+        set => SetEdgeResistance(DisplayEdge.Right, value, nameof(RightResistanceMm));
+    }
+
+    public int RightSpeedAdaptiveIndex
+    {
+        get => ToSpeedMode(GetEdgeResistance(DisplayEdge.Right)?.SpeedAdaptive);
+        set => SetEdgeSpeedMode(DisplayEdge.Right, value, nameof(RightSpeedAdaptiveIndex));
+    }
+
+    public bool BottomUseCustomResistance
+    {
+        get => GetEdgeResistance(DisplayEdge.Bottom)?.UseCustomResistance ?? false;
+        set => SetEdgeCustom(DisplayEdge.Bottom, value, nameof(BottomUseCustomResistance));
+    }
+
+    public double BottomResistanceMm
+    {
+        get => GetEdgeResistance(DisplayEdge.Bottom)?.ResistanceMm ?? BorderResistanceMm;
+        set => SetEdgeResistance(DisplayEdge.Bottom, value, nameof(BottomResistanceMm));
+    }
+
+    public int BottomSpeedAdaptiveIndex
+    {
+        get => ToSpeedMode(GetEdgeResistance(DisplayEdge.Bottom)?.SpeedAdaptive);
+        set => SetEdgeSpeedMode(DisplayEdge.Bottom, value, nameof(BottomSpeedAdaptiveIndex));
     }
 
     public bool HasSelectedDisplay => _selectedDisplay is not null;
 
     public AppRule? SelectedRule { get; set; }
+
+    private EdgeResistanceSettings? GetEdgeResistance(DisplayEdge edge, bool create = false)
+    {
+        if (SelectedDisplay is not { } display)
+        {
+            return null;
+        }
+
+        DisplayResistanceSettings? settings = Config.Transition.DisplayResistance.FirstOrDefault(d =>
+            string.Equals(d.StableId, display.StableId, StringComparison.OrdinalIgnoreCase));
+
+        if (settings is null && create)
+        {
+            settings = new DisplayResistanceSettings { StableId = display.StableId };
+            foreach (DisplayEdge value in Enum.GetValues<DisplayEdge>())
+            {
+                settings.For(value).ResistanceMm = BorderResistanceMm;
+            }
+            Config.Transition.DisplayResistance.Add(settings);
+        }
+
+        return settings?.For(edge);
+    }
+
+    private void SetEdgeCustom(DisplayEdge edge, bool value, string propertyName)
+    {
+        EdgeResistanceSettings? settings = GetEdgeResistance(edge, create: true);
+        if (settings is null) return;
+        Update(() => settings.UseCustomResistance = value, propertyName: propertyName);
+    }
+
+    private void SetEdgeResistance(DisplayEdge edge, double value, string propertyName)
+    {
+        EdgeResistanceSettings? settings = GetEdgeResistance(edge, create: true);
+        if (settings is null) return;
+        Update(() => settings.ResistanceMm = Math.Clamp(Math.Round(value, 1), 0, 200), propertyName: propertyName);
+    }
+
+    private void SetEdgeSpeedMode(DisplayEdge edge, int value, string propertyName)
+    {
+        EdgeResistanceSettings? settings = GetEdgeResistance(edge, create: true);
+        if (settings is null) return;
+        Update(() => settings.SpeedAdaptive = value switch { 1 => true, 2 => false, _ => null }, propertyName: propertyName);
+    }
+
+    private static int ToSpeedMode(bool? value) => value switch { true => 1, false => 2, _ => 0 };
+
+    private void RaiseSelectedResistanceProperties()
+    {
+        foreach (string property in new[]
+        {
+            nameof(LeftUseCustomResistance), nameof(LeftResistanceMm), nameof(LeftSpeedAdaptiveIndex),
+            nameof(TopUseCustomResistance), nameof(TopResistanceMm), nameof(TopSpeedAdaptiveIndex),
+            nameof(RightUseCustomResistance), nameof(RightResistanceMm), nameof(RightSpeedAdaptiveIndex),
+            nameof(BottomUseCustomResistance), nameof(BottomResistanceMm), nameof(BottomSpeedAdaptiveIndex),
+        })
+        {
+            Raise(property);
+        }
+    }
 
     /// <summary>
     /// Writes an edited panel back into the saved profile and rebuilds the router's layout, so the
@@ -384,6 +563,16 @@ public sealed class MainViewModel : ObservableObject
         _engine.ApplyConfig(Config);
         _engine.RebuildLayout("layout edited");
         SchedulePersist();
+    }
+
+    private void OpenCalibration()
+    {
+        var window = new PhysicalCalibrationWindow(this)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        window.ShowDialog();
+        LayoutRefreshed?.Invoke();
     }
 
     private void RevertSelectedSize()
@@ -445,6 +634,8 @@ public sealed class MainViewModel : ObservableObject
                 {
                     StableId = zone.StableId,
                     Label = zone.DisplayName,
+                    PixelLeft = zone.PixelBounds.Left,
+                    PixelTop = zone.PixelBounds.Top,
                     PixelWidth = zone.PixelBounds.Width,
                     PixelHeight = zone.PixelBounds.Height,
                     IsPrimary = zone.IsPrimary,
@@ -461,12 +652,40 @@ public sealed class MainViewModel : ObservableObject
                 Displays.Add(item);
             }
 
+            ApplyWallpapers();
             SelectedDisplay = Displays.FirstOrDefault(d => d.IsPrimary) ?? Displays.FirstOrDefault();
             Raise(nameof(IsUniformLayout));
+            OpenCalibrationCommand.RaiseCanExecuteChanged();
             LayoutRefreshed?.Invoke();
         }
 
         Dispatch(Rebuild);
+    }
+
+    public void RefreshWallpapers()
+    {
+        ApplyWallpapers();
+        LayoutRefreshed?.Invoke();
+    }
+
+    private void ApplyWallpapers()
+    {
+        IReadOnlyList<WallpaperSnapshot> snapshots = _wallpapers.Enumerate();
+        foreach (DisplayItem display in Displays)
+        {
+            WallpaperSnapshot? match = snapshots
+                .Select(w => new { Wallpaper = w, Area = IntersectionArea(display.PixelRect, w.PixelBounds) })
+                .OrderByDescending(x => x.Area)
+                .FirstOrDefault(x => x.Area > 0)?.Wallpaper;
+            display.WallpaperBrush = match?.Brush;
+        }
+    }
+
+    private static double IntersectionArea(RectD a, RectD b)
+    {
+        double width = Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left));
+        double height = Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top));
+        return width * height;
     }
 
     public event Action? LayoutRefreshed;
@@ -515,6 +734,89 @@ public sealed class MainViewModel : ObservableObject
         SchedulePersist();
     }
 
+    private void ExportSettings()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = Loc.Get("settings.export"),
+            Filter = Loc.Get("settings.fileFilter"),
+            DefaultExt = ".json",
+            AddExtension = true,
+            FileName = $"CaYaScreenBridge-settings-{DateTime.Now:yyyyMMdd-HHmm}.json",
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            Persist();
+            _store.Export(Config, dialog.FileName);
+            MessageBox.Show(Loc.Get("settings.exportSuccess"), Loc.Get("app.name"), MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Config", $"Export failed: {ex.Message}");
+            MessageBox.Show(
+                Loc.Get("settings.exportFailed") + Environment.NewLine + ex.Message,
+                Loc.Get("app.name"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private void ImportSettings()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = Loc.Get("settings.import"),
+            Filter = Loc.Get("settings.fileFilter"),
+            DefaultExt = ".json",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            AppConfig imported = _store.Import(dialog.FileName);
+            _engine.ApplyConfig(imported);
+            _store.Save(imported);
+            LoadFromConfig();
+            RaiseAllSettings();
+            _engine.RebuildLayout("settings imported");
+            ApplyStartup();
+            MessageBox.Show(Loc.Get("settings.importSuccess"), Loc.Get("app.name"), MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Config", $"Import failed: {ex.Message}");
+            MessageBox.Show(
+                Loc.Get("settings.importFailed") + Environment.NewLine + ex.Message,
+                Loc.Get("app.name"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private void RaiseAllSettings()
+    {
+        foreach (string property in new[]
+        {
+            nameof(MasterEnabled), nameof(AlignCursor), nameof(UseRawInputAssist), nameof(PreventCursorLoss),
+            nameof(NormalisePointerSpeed), nameof(BorderResistanceMm), nameof(SpeedAdaptiveResistance),
+            nameof(ResistanceSpeedReferenceMmPerSecond), nameof(WrapIndex), nameof(DragModeIndex),
+            nameof(PreserveGrabPoint), nameof(SeamlessCrossDisplay), nameof(SkipDpiUnawareWindows),
+            nameof(SkipMaximisedWindows), nameof(LiveThrottleMs), nameof(PauseInExclusiveFullScreen),
+            nameof(CorrectInBorderlessFullScreen), nameof(DeepWindowsIntegration), nameof(PauseForAntiCheat),
+            nameof(StartWithWindows), nameof(StartElevated), nameof(StartMinimised), nameof(ShowTrayIcon),
+            nameof(RaiseHookTimeout), nameof(VerboseLogging), nameof(LanguageIndex),
+        })
+        {
+            Raise(property);
+        }
+        RaiseSelectedResistanceProperties();
+    }
+
     // -------------------------------------------------------------------------------------------
     // Diagnostics
     // -------------------------------------------------------------------------------------------
@@ -525,8 +827,8 @@ public sealed class MainViewModel : ObservableObject
 
     private void RefreshLive()
     {
-        Vec2 physical = _engine.Router.PhysicalPosition;
-        string zone = _engine.Router.CurrentZone?.DisplayName ?? "-";
+        Vec2 physical = _engine.PhysicalPosition;
+        string zone = _engine.CurrentZoneName ?? "-";
         LiveCursor = $"{physical.X:0.0} × {physical.Y:0.0} mm · {zone}";
         Status = _engine.Status;
     }

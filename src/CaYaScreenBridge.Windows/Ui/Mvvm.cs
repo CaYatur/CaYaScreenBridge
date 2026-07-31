@@ -48,5 +48,7 @@ public sealed class RelayCommand : ICommand
 
     public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
 
+    public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
+
     public void Execute(object? parameter) => _execute(parameter);
 }

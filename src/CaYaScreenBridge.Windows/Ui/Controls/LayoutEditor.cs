@@ -22,9 +22,17 @@ public sealed class DisplayItem : ObservableObject
 
     public required string Label { get; set; }
 
+    public required double PixelLeft { get; init; }
+
+    public required double PixelTop { get; init; }
+
     public required double PixelWidth { get; init; }
 
     public required double PixelHeight { get; init; }
+
+    public RectD PixelRect => new(PixelLeft, PixelTop, PixelWidth, PixelHeight);
+
+    public ImageBrush? WallpaperBrush { get; set; }
 
     public bool IsPrimary { get; init; }
 
@@ -103,6 +111,8 @@ public sealed class LayoutEditor : FrameworkElement
     private readonly Brush _surface = Freeze(new SolidColorBrush(Color.FromRgb(0x0E, 0x11, 0x1B)));
     private readonly Brush _panel = Freeze(new SolidColorBrush(Color.FromRgb(0x1B, 0x20, 0x32)));
     private readonly Brush _panelSelected = Freeze(new SolidColorBrush(Color.FromRgb(0x2A, 0x14, 0x1D)));
+    private readonly Brush _wallpaperShade = Freeze(new SolidColorBrush(Color.FromArgb(0x9C, 0x00, 0x00, 0x00)));
+    private readonly Brush _wallpaperSelectedShade = Freeze(new SolidColorBrush(Color.FromArgb(0x42, 0xE5, 0x20, 0x2B)));
     private readonly Pen _panelBorder = FreezePen(Color.FromRgb(0x33, 0x3C, 0x55), 1);
     private readonly Pen _panelBorderSelected = FreezePen(Color.FromRgb(0xE5, 0x20, 0x2B), 2);
     private readonly Pen _snapGuide = FreezePen(Color.FromRgb(0xE5, 0x20, 0x2B), 1, dashed: true);
@@ -265,12 +275,34 @@ public sealed class LayoutEditor : FrameworkElement
         double height = item.HeightMm * _scale;
         var rect = new Rect(topLeft.X, topLeft.Y, Math.Max(6, width), Math.Max(6, height));
 
-        dc.DrawRoundedRectangle(
-            isSelected ? _panelSelected : _panel,
-            isSelected ? _panelBorderSelected : _panelBorder,
-            rect,
-            6,
-            6);
+        if (item.WallpaperBrush is not null)
+        {
+            var clip = new RectangleGeometry(rect, 6, 6);
+            clip.Freeze();
+            dc.PushClip(clip);
+            dc.DrawRectangle(item.WallpaperBrush, null, rect);
+            dc.DrawRectangle(_wallpaperShade, null, rect);
+            if (isSelected)
+            {
+                dc.DrawRectangle(_wallpaperSelectedShade, null, rect);
+            }
+            dc.Pop();
+            dc.DrawRoundedRectangle(
+                null,
+                isSelected ? _panelBorderSelected : _panelBorder,
+                rect,
+                6,
+                6);
+        }
+        else
+        {
+            dc.DrawRoundedRectangle(
+                isSelected ? _panelSelected : _panel,
+                isSelected ? _panelBorderSelected : _panelBorder,
+                rect,
+                6,
+                6);
+        }
 
         if (item.IsPrimary)
         {
@@ -311,7 +343,7 @@ public sealed class LayoutEditor : FrameworkElement
         }
 
         FormattedText position = Format(
-            string.Create(CultureInfo.CurrentCulture, $"Konum: {item.LeftMm:0.0}, {item.TopMm:0.0} mm"),
+            string.Create(CultureInfo.CurrentCulture, $"{Loc.Get("displays.position")}: {item.LeftMm:0.0}, {item.TopMm:0.0} mm"),
             11,
             _textDim,
             _typefaceSmall,

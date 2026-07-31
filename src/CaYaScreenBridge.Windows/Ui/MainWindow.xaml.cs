@@ -44,6 +44,7 @@ public partial class MainWindow : Window
     {
         base.OnActivated(e);
         _viewModel.StartLiveUpdates();
+        _viewModel.RefreshWallpapers();
     }
 
     protected override void OnDeactivated(EventArgs e)

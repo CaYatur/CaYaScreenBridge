@@ -33,6 +33,7 @@ public sealed class WindowDragTracker : IDisposable
 
     private readonly ILogSink _log;
     private readonly object _stateLock = new();
+    private readonly DwmDragPreviewHost _preview = new();
 
     private DragSettings _settings = new();
     private DragState? _drag;
@@ -46,6 +47,7 @@ public sealed class WindowDragTracker : IDisposable
     private bool _buttonDown;
 
     private int _applyScheduled;
+    private int _applyGeneration;
     private RectD _pendingRect;
     private nint _pendingWindow;
     private bool _disposed;
@@ -65,7 +67,10 @@ public sealed class WindowDragTracker : IDisposable
             _drag = null;
             _candidateWindow = 0;
             _buttonDown = false;
+            Interlocked.Increment(ref _applyGeneration);
         }
+
+        _preview.Hide();
     }
 
     // -------------------------------------------------------------------------------------------
@@ -74,7 +79,7 @@ public sealed class WindowDragTracker : IDisposable
 
     public void OnButtonDown(Vec2 cursorPixel, ZoneLayout layout)
     {
-        if (_settings.Mode == DragScalingMode.Off)
+        if (_settings.Mode == DragScalingMode.Off && !_settings.SeamlessCrossDisplay)
         {
             return;
         }
@@ -115,6 +120,9 @@ public sealed class WindowDragTracker : IDisposable
             _drag = null;
         }
 
+
+        _preview.Hide();
+
         if (finished is null)
         {
             return;
@@ -126,7 +134,7 @@ public sealed class WindowDragTracker : IDisposable
     /// <summary>Raised by the WinEvent hook when Windows starts its own move/size loop.</summary>
     public void OnMoveSizeStart(nint hwnd, Vec2 cursorPixel, ZoneLayout layout)
     {
-        if (_settings.Mode == DragScalingMode.Off || !IsEligible(hwnd))
+        if ((_settings.Mode == DragScalingMode.Off && !_settings.SeamlessCrossDisplay) || !IsEligible(hwnd))
         {
             return;
         }
@@ -155,6 +163,7 @@ public sealed class WindowDragTracker : IDisposable
             _candidateWindow = 0;
         }
 
+        _preview.Hide();
         FinishDrag(finished, cursorPixel, layout);
     }
 
@@ -164,13 +173,14 @@ public sealed class WindowDragTracker : IDisposable
     /// </summary>
     public void OnCursorMoved(Vec2 cursorPixel, DisplayZone? zone, ZoneLayout layout, bool scalingAllowed)
     {
-        if (zone is null || _settings.Mode == DragScalingMode.Off)
+        bool continuity = _settings.SeamlessCrossDisplay;
+        if (zone is null || (_settings.Mode == DragScalingMode.Off && !continuity))
         {
+            _preview.Hide();
             return;
         }
 
         DragState? drag;
-
         lock (_stateLock)
         {
             if (_drag is null && _buttonDown && _candidateWindow != 0)
@@ -181,26 +191,47 @@ public sealed class WindowDragTracker : IDisposable
             drag = _drag;
         }
 
-        if (drag is null || !scalingAllowed || _settings.Mode != DragScalingMode.Live)
+        if (drag is null || !scalingAllowed || !drag.Resizable)
         {
-            return;
-        }
-
-        if (drag.CurrentZoneId == zone.StableId)
-        {
+            _preview.Hide();
             return;
         }
 
         drag.CurrentZoneId = zone.StableId;
 
-        if (!drag.Resizable)
+        if (continuity)
+        {
+            Vec2 cursorPhysical = zone.PixelToMm(cursorPixel);
+            var physicalWindow = new RectD(
+                cursorPhysical.X - (drag.GrabFraction.X * drag.PhysicalSizeMm.X),
+                cursorPhysical.Y - (drag.GrabFraction.Y * drag.PhysicalSizeMm.Y),
+                drag.PhysicalSizeMm.X,
+                drag.PhysicalSizeMm.Y);
+
+            // No SetWindowPos here. Windows keeps moving and DPI-scaling the real HWND normally.
+            // The preview host cloaks it only while the physical rectangle spans displays and draws
+            // one correctly-scaled piece per monitor. As soon as it belongs to one display again,
+            // the preview disappears and Windows' real window is revealed unchanged.
+            _preview.Update(drag.WindowHandle, physicalWindow, layout);
+            return;
+        }
+
+        _preview.Hide();
+
+        if (_settings.Mode != DragScalingMode.Live ||
+            !HasEnteredZone(cursorPixel, zone.PixelBounds, 4))
         {
             return;
         }
 
-        RectD target = WindowDragSolver.SolveTargetRect(drag, zone, cursorPixel, _settings.PreserveGrabPoint);
-        long now = Environment.TickCount64;
+        RectD target = WindowDragSolver.SolveTargetRect(
+            drag,
+            zone,
+            cursorPixel,
+            _settings.PreserveGrabPoint);
+        bool reapplyAfterSettle = WindowDragSolver.IsFullyInside(target, zone.PixelBounds, 1.5);
 
+        long now = Environment.TickCount64;
         if (!WindowDragSolver.ShouldApply(drag, target, now, _settings.LiveThrottleMs))
         {
             return;
@@ -208,9 +239,14 @@ public sealed class WindowDragTracker : IDisposable
 
         drag.LastAppliedMs = now;
         drag.LastAppliedRect = target;
-
-        ScheduleApply(drag.WindowHandle, target, reapplyAfterSettle: true);
+        ScheduleApply(drag.WindowHandle, target, reapplyAfterSettle);
     }
+
+    private static bool HasEnteredZone(Vec2 cursor, RectD bounds, double insetPx) =>
+        cursor.X >= bounds.Left + insetPx &&
+        cursor.X < bounds.Right - insetPx &&
+        cursor.Y >= bounds.Top + insetPx &&
+        cursor.Y < bounds.Bottom - insetPx;
 
     // -------------------------------------------------------------------------------------------
     // Internals
@@ -266,6 +302,8 @@ public sealed class WindowDragTracker : IDisposable
             StartZoneId = zone.StableId,
             Resizable = resizable,
             CurrentZoneId = zone.StableId,
+            SettledZoneId = zone.StableId,
+            SettledSizePx = new Vec2(rect.Width, rect.Height),
             LastAppliedRect = rect,
         };
 
@@ -304,6 +342,7 @@ public sealed class WindowDragTracker : IDisposable
     {
         _pendingWindow = hwnd;
         _pendingRect = rect;
+        Interlocked.Increment(ref _applyGeneration);
 
         if (Interlocked.Exchange(ref _applyScheduled, 1) != 0)
         {
@@ -326,6 +365,7 @@ public sealed class WindowDragTracker : IDisposable
         {
             nint hwnd = _pendingWindow;
             RectD rect = _pendingRect;
+            int generation = Volatile.Read(ref _applyGeneration);
             Interlocked.Exchange(ref _applyScheduled, 0);
 
             if (!Apply(hwnd, rect) || !reapplyAfterSettle || _disposed)
@@ -338,7 +378,7 @@ public sealed class WindowDragTracker : IDisposable
             Task.Delay(SettleDelayMs).ContinueWith(
                 _ =>
                 {
-                    if (!_disposed)
+                    if (!_disposed && Volatile.Read(ref _applyGeneration) == generation)
                     {
                         Apply(hwnd, rect);
                     }
@@ -481,5 +521,6 @@ public sealed class WindowDragTracker : IDisposable
     {
         _disposed = true;
         Reset();
+        _preview.Dispose();
     }
 }

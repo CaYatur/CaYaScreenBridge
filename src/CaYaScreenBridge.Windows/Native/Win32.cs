@@ -236,6 +236,7 @@ internal static class Win32
     public const uint SWP_NOOWNERZORDER = 0x0200;
     public const uint SWP_ASYNCWINDOWPOS = 0x4000;
     public const uint SWP_NOSENDCHANGING = 0x0400;
+    public const uint SWP_SHOWWINDOW = 0x0040;
 
     public const uint GA_ROOT = 2;
 
@@ -381,6 +382,36 @@ internal static class Win32
     [DllImport(User32, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ClipCursor(nint lpRect);
+
+    [DllImport(User32, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ClipCursor(ref RECT lpRect);
+
+    private const uint DESKTOP_SWITCHDESKTOP = 0x0100;
+
+    [DllImport(User32, SetLastError = true)]
+    private static extern nint OpenInputDesktop(uint dwFlags, bool fInherit, uint dwDesiredAccess);
+
+    [DllImport(User32, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseDesktop(nint hDesktop);
+
+    /// <summary>
+    /// Returns false while Windows is showing a secure input desktop such as Ctrl+Alt+Delete,
+    /// sign-in, or a secure UAC prompt. Normal desktop applications cannot install or service
+    /// input hooks on that desktop by design.
+    /// </summary>
+    public static bool CanAccessInputDesktop()
+    {
+        nint desktop = OpenInputDesktop(0, false, DESKTOP_SWITCHDESKTOP);
+        if (desktop == 0)
+        {
+            return false;
+        }
+
+        CloseDesktop(desktop);
+        return true;
+    }
 
     // ---- monitors -------------------------------------------------------------------------
     [DllImport(User32)]

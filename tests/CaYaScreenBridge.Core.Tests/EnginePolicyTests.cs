@@ -9,13 +9,27 @@ public class EnginePolicyTests
     private static AppConfig Config() => new();
 
     [Fact]
-    public void NormalForegroundCorrectsCursorButWindowScalingIsOffByDefault()
+    public void NormalForegroundAllowsDefaultCrossDisplayContinuity()
     {
         PolicyDecision decision = EnginePolicy.Evaluate(
             Config(),
             new ForegroundState("explorer", ForegroundKind.Normal, false, false));
 
         Assert.True(decision.CorrectCursor);
+        Assert.True(decision.ScaleWindows);
+    }
+
+    [Fact]
+    public void TurningOffContinuityAndScalingDisablesWindowGeometryChanges()
+    {
+        AppConfig config = Config();
+        config.Drag.SeamlessCrossDisplay = false;
+        config.Drag.Mode = DragScalingMode.Off;
+
+        PolicyDecision decision = EnginePolicy.Evaluate(
+            config,
+            new ForegroundState("explorer", ForegroundKind.Normal, false, false));
+
         Assert.False(decision.ScaleWindows);
     }
 
@@ -49,7 +63,7 @@ public class EnginePolicyTests
 
         Assert.True(decision.CorrectCursor);
         Assert.False(decision.ScaleWindows);
-        Assert.Equal("normal", decision.Reason);
+        Assert.Equal("exclusive-fullscreen", decision.Reason);
     }
 
     [Fact]
@@ -106,6 +120,12 @@ public class EnginePolicyTests
             new ForegroundState("notepad", ForegroundKind.Normal, false, false));
 
         Assert.True(decision.CorrectCursor);
+    }
+
+    [Fact]
+    public void DeepWindowsIntegrationIsDisabledByDefault()
+    {
+        Assert.False(Config().Games.DeepWindowsIntegration);
     }
 
     [Fact]

@@ -28,6 +28,12 @@ public sealed class DragState
 
     public string CurrentZoneId { get; set; } = string.Empty;
 
+    /// <summary>The display on which the complete window last settled.</summary>
+    public string SettledZoneId { get; set; } = string.Empty;
+
+    /// <summary>Pixel size to preserve while the window straddles the next display boundary.</summary>
+    public Vec2 SettledSizePx { get; set; }
+
     public long LastAppliedMs { get; set; }
 
     public RectD LastAppliedRect { get; set; }
@@ -97,6 +103,191 @@ public static class WindowDragSolver
 
         return new RectD(Math.Round(left), Math.Round(top), Math.Round(width), Math.Round(height));
     }
+
+    /// <summary>
+    /// During the straddling phase keep the source-screen pixel size. This prevents Windows from
+    /// applying the destination DPI suggestion while half of the window is still visible on the
+    /// source display. The grab point remains fixed under the cursor.
+    /// </summary>
+    public static RectD SolveTransitionRect(DragState drag, Vec2 cursorPixel, bool preserveGrabPoint)
+    {
+        double width = drag.SettledSizePx.X > 0 ? drag.SettledSizePx.X : drag.StartRect.Width;
+        double height = drag.SettledSizePx.Y > 0 ? drag.SettledSizePx.Y : drag.StartRect.Height;
+        double left = preserveGrabPoint
+            ? cursorPixel.X - (drag.GrabFraction.X * width)
+            : drag.StartRect.Left;
+        double top = preserveGrabPoint
+            ? cursorPixel.Y - (drag.GrabFraction.Y * height)
+            : drag.StartRect.Top;
+
+        return new RectD(Math.Round(left), Math.Round(top), Math.Round(width), Math.Round(height));
+    }
+
+    /// <summary>
+    /// Solves one continuous window rectangle across any number of displays. The source window's
+    /// physical size remains the invariant. Each display contributes according to the physical
+    /// area of the window currently visible on that display, so high-density and low-density
+    /// monitors blend smoothly instead of switching at an arbitrary cursor boundary.
+    /// </summary>
+    public static RectD SolveContinuousRect(
+        DragState drag,
+        Vec2 cursorPixel,
+        ZoneLayout layout,
+        bool preserveGrabPoint,
+        int iterations = 6,
+        bool snapToSingleDisplay = true)
+    {
+        if (layout.Count == 0)
+        {
+            return SolveTransitionRect(drag, cursorPixel, preserveGrabPoint);
+        }
+
+        double width = drag.LastAppliedRect.Width > 0
+            ? drag.LastAppliedRect.Width
+            : drag.StartRect.Width;
+        double height = drag.LastAppliedRect.Height > 0
+            ? drag.LastAppliedRect.Height
+            : drag.StartRect.Height;
+
+        width = Math.Max(MinimumWidthPx, width);
+        height = Math.Max(MinimumHeightPx, height);
+
+        for (int iteration = 0; iteration < Math.Max(1, iterations); iteration++)
+        {
+            RectD candidate = PositionFromGrab(drag, cursorPixel, preserveGrabPoint, width, height);
+            if (!TryComputeBlendedPixelsPerMm(candidate, layout, out Vec2 pixelsPerMm))
+            {
+                DisplayZone? fallback = layout.FindByPixel(cursorPixel) ?? layout.NearestByPixel(cursorPixel);
+                if (fallback is null)
+                {
+                    break;
+                }
+
+                pixelsPerMm = fallback.PixelsPerMm;
+            }
+
+            double desiredWidth = Math.Max(MinimumWidthPx, drag.PhysicalSizeMm.X * pixelsPerMm.X);
+            double desiredHeight = Math.Max(MinimumHeightPx, drag.PhysicalSizeMm.Y * pixelsPerMm.Y);
+
+            // Damped fixed-point iteration prevents a wide window from oscillating when changing
+            // its own size also changes the overlap weights at a monitor boundary.
+            const double response = 0.72;
+            width += (desiredWidth - width) * response;
+            height += (desiredHeight - height) * response;
+        }
+
+        RectD solved = PositionFromGrab(drag, cursorPixel, preserveGrabPoint, width, height, round: true);
+        DisplayZone? dominant = FindDominantZone(solved, layout);
+        if (snapToSingleDisplay && dominant is not null && IsFullyInside(solved, dominant.PixelBounds, 1.5))
+        {
+            // Once the complete rectangle is on one display there is no ambiguity left: snap to the
+            // exact physical target size so the endpoint is deterministic and does not retain a
+            // fraction of the previous monitor's density.
+            return SolveTargetRect(drag, dominant, cursorPixel, preserveGrabPoint);
+        }
+
+        return solved;
+    }
+
+    /// <summary>Counts displays containing a meaningful portion of the rectangle.</summary>
+    public static int CountIntersectingDisplays(RectD rect, ZoneLayout layout, double minimumAreaPx = 1)
+    {
+        int count = 0;
+        foreach (DisplayZone zone in layout.Zones)
+        {
+            if (IntersectionArea(rect, zone.PixelBounds) >= minimumAreaPx)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>Returns the display containing the largest physical part of a window.</summary>
+    public static DisplayZone? FindDominantZone(RectD rect, ZoneLayout layout)
+    {
+        DisplayZone? best = null;
+        double bestPhysicalArea = 0;
+
+        foreach (DisplayZone zone in layout.Zones)
+        {
+            double pixelArea = IntersectionArea(rect, zone.PixelBounds);
+            double physicalArea = pixelArea * zone.MmPerPixel.X * zone.MmPerPixel.Y;
+            if (physicalArea > bestPhysicalArea)
+            {
+                bestPhysicalArea = physicalArea;
+                best = zone;
+            }
+        }
+
+        return best;
+    }
+
+    private static bool TryComputeBlendedPixelsPerMm(RectD rect, ZoneLayout layout, out Vec2 result)
+    {
+        double totalPhysicalArea = 0;
+        double weightedPixelsPerMmX = 0;
+        double weightedPixelsPerMmY = 0;
+
+        foreach (DisplayZone zone in layout.Zones)
+        {
+            double pixelArea = IntersectionArea(rect, zone.PixelBounds);
+            if (pixelArea <= 0)
+            {
+                continue;
+            }
+
+            double physicalArea = pixelArea * zone.MmPerPixel.X * zone.MmPerPixel.Y;
+            totalPhysicalArea += physicalArea;
+            weightedPixelsPerMmX += physicalArea * zone.PixelsPerMm.X;
+            weightedPixelsPerMmY += physicalArea * zone.PixelsPerMm.Y;
+        }
+
+        if (totalPhysicalArea <= 0)
+        {
+            result = default;
+            return false;
+        }
+
+        result = new Vec2(
+            weightedPixelsPerMmX / totalPhysicalArea,
+            weightedPixelsPerMmY / totalPhysicalArea);
+        return true;
+    }
+
+    private static RectD PositionFromGrab(
+        DragState drag,
+        Vec2 cursorPixel,
+        bool preserveGrabPoint,
+        double width,
+        double height,
+        bool round = false)
+    {
+        double left = preserveGrabPoint
+            ? cursorPixel.X - (drag.GrabFraction.X * width)
+            : drag.StartRect.Left;
+        double top = preserveGrabPoint
+            ? cursorPixel.Y - (drag.GrabFraction.Y * height)
+            : drag.StartRect.Top;
+
+        return round
+            ? new RectD(Math.Round(left), Math.Round(top), Math.Round(width), Math.Round(height))
+            : new RectD(left, top, width, height);
+    }
+
+    private static double IntersectionArea(RectD a, RectD b)
+    {
+        double width = Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left));
+        double height = Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top));
+        return width * height;
+    }
+
+    public static bool IsFullyInside(RectD rect, RectD bounds, double tolerancePx = 1) =>
+        rect.Left >= bounds.Left - tolerancePx &&
+        rect.Top >= bounds.Top - tolerancePx &&
+        rect.Right <= bounds.Right + tolerancePx &&
+        rect.Bottom <= bounds.Bottom + tolerancePx;
 
     /// <summary>
     /// Keeps enough of the title bar reachable that the window can still be moved after the drag
